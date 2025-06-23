@@ -3,7 +3,7 @@ import pandas as pd # Used for data structure, not direct DataFrame operations h
 
 st.set_page_config(layout="wide", page_title="Employee Flashcards")
 
-st.title("🃏 Employee Flashcards")
+st.title("Employee Flashcards")
 st.markdown("---")
 
 # Re-defining employee data here for now. Will be centralized in Phase 3.
