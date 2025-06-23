@@ -8,10 +8,10 @@ st.markdown("---")
 
 # Re-defining employee data here for now. Will be centralized in Phase 3.
 employee_full_details = {
-    "Rupesh Mukherjee": {"Title": "Associate Practice Leader", "Department": "PMU", "Reporting To": "N/A", "Email": "rupeshmukherjee@example.com", "Phone": "91-9876543210", "Status": "Employee"},
-    "Shifali Sharma": {"Title": "Project Manager", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "shifali@example.com", "Phone": "91-89221943", "Status": "Employee"},
-    "Kuntal Dutta": {"Title": "Senior Manager - Field", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "kuntal@example.com", "Phone": "91-9932032059", "Status": "Employee"},
-    "Sachin WadapaLliwar": {"Title": "Manager - Field", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "sachinw@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
+    "Rupesh Mukherjee": {"Title": "Associate Practice Leader", "Department": "PMU", "Reporting To": "N/A", "Email": "rmukherjee@tns.org", "Phone": "91-9876543210", "Status": "Employee"},
+    "Shifali Sharma": {"Title": "Project Manager", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "shifalis@tns.org", "Phone": "91-89221943", "Status": "Employee"},
+    "Kuntal Dutta": {"Title": "Senior Manager - Field", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "kuntald@tns.org", "Phone": "91-9932032059", "Status": "Employee"},
+    "Sachin WadapaLliwar": {"Title": "Manager - Field", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "swadpalliwar@tns.org", "Phone": "(555) 555-5555", "Status": "Employee"},
     "Dr. Guru Mohan Reddy": {"Title": "Assistant Manager - Field", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "gurumohan@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
     "K Balaji": {"Title": "Senior Associate - Field", "Department": "PMU", "Reporting To": "Dr. Ramakrishna", "Email": "kbalaji@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
     "Bhavya Kharoo": {"Title": "Employee", "Department": "PMU", "Reporting To": "Shifali Sharma", "Email": "bhavya@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
