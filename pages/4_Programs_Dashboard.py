@@ -15,24 +15,45 @@ st.markdown("Overview and management of current projects/programs, including bud
 # Structure: {program_name: {"budget": float, "tasks": [{"id": int, "name": str, "spent": float, "description": str}]}}
 if 'programs_data' not in st.session_state:
     st.session_state.programs_data = {
-        "Project Phoenix": {
-            "budget": 100000.00,
+        "SAKSHAM": {
+            "budget": 250000.00, # Example budget
             "tasks": [
-                {"id": 1, "name": "Market Research", "spent": 15000.00, "description": "Conduct survey and analyze market trends."},
-                {"id": 2, "name": "Product Design", "spent": 25000.00, "description": "Develop UI/UX mockups and prototypes."},
-                {"id": 3, "name": "Team Recruitment", "spent": 10000.00, "description": "Hire specialized personnel for development."}
+                {"id": 1, "name": "Phase 1 Rollout", "spent": 50000.00, "description": "Execute initial rollout in selected regions."},
+                {"id": 2, "name": "Beneficiary Registration", "spent": 15000.00, "description": "Register new beneficiaries and collect data."}
             ]
         },
-        "Operation Dragon": {
-            "budget": 75000.00,
+        "Heritage": {
+            "budget": 180000.00, # Example budget
             "tasks": [
-                {"id": 1, "name": "Infrastructure Setup", "spent": 12000.00, "description": "Set up cloud servers and databases."},
-                {"id": 2, "name": "Security Audit", "spent": 8000.00, "description": "Perform comprehensive security vulnerability assessment."}
+                {"id": 1, "name": "Site Assessment", "spent": 20000.00, "description": "Conduct preliminary assessment of historical sites."},
+                {"id": 2, "name": "Restoration Planning", "spent": 10000.00, "description": "Develop detailed restoration plans."}
             ]
         },
-        "Initiative Horizon": {
-            "budget": 50000.00,
-            "tasks": [] # No tasks initially
+        "KS 1.0": {
+            "budget": 120000.00, # Example budget
+            "tasks": [
+                {"id": 1, "name": "Curriculum Development", "spent": 30000.00, "description": "Design educational curriculum modules."}
+            ]
+        },
+        "KS 2.0": {
+            "budget": 150000.00, # Example budget
+            "tasks": [
+                {"id": 1, "name": "Technology Integration", "spent": 25000.00, "description": "Integrate new learning technologies."}
+            ]
+        },
+        "Water Program": {
+            "budget": 300000.00, # Example budget
+            "tasks": [
+                {"id": 1, "name": "Well Drilling", "spent": 75000.00, "description": "Drill new water wells in target villages."},
+                {"id": 2, "name": "Community Engagement", "spent": 10000.00, "description": "Engage local communities for water management."}
+            ]
+        },
+        "Education Program": {
+            "budget": 200000.00, # Example budget
+            "tasks": [
+                {"id": 1, "name": "Teacher Training", "spent": 40000.00, "description": "Conduct training workshops for educators."},
+                {"id": 2, "name": "Material Distribution", "spent": 18000.00, "description": "Distribute educational materials to schools."}
+            ]
         }
     }
 
@@ -64,7 +85,7 @@ st.markdown("---")
 
 # --- Add/Manage Programs Section ---
 st.header("➕ Add/Manage Programs")
-program_names = sorted(list(st.session_state.programs_data.keys()))
+program_names_list = sorted(list(st.session_state.programs_data.keys())) # Renamed to avoid conflict
 
 with st.expander("Add New Program"):
     with st.form("add_program_form"):
@@ -87,8 +108,8 @@ with st.expander("Add New Program"):
 
 # --- Select Program to Manage ---
 st.markdown("### Select a Program to Manage Details")
-if program_names:
-    selected_program = st.selectbox("Choose a Program", program_names, key="selected_program_details")
+if program_names_list: # Use the list of program names
+    selected_program = st.selectbox("Choose a Program", program_names_list, key="selected_program_details")
 
     if selected_program:
         current_program = st.session_state.programs_data[selected_program]
@@ -157,7 +178,7 @@ if program_names:
                         new_spent_amount = st.number_input("New Spent Amount (₹)", min_value=0.00, value=current_task['spent'], step=100.00, key=f"new_spent_amount_{selected_program}_{selected_task_id}")
                         update_spent_button = st.form_submit_button("Update Task Spent")
 
-                        if update_spent_button:
+                        if update_button: # Assuming update_button is the submit button for this form
                             for i, task in enumerate(st.session_state.programs_data[selected_program]['tasks']):
                                 if task['id'] == selected_task_id:
                                     st.session_state.programs_data[selected_program]['tasks'][i]['spent'] = new_spent_amount
