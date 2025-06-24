@@ -23,7 +23,7 @@ employee_names = sorted([
     "Dr. Guru Mohan Reddy", "K Balaji", "Bhavya Kharoo", "Gautam Bagada",
     "Ajay Vaghela", "Samadhan Bangale", "Prabodh Pate", "Ramalakshmi Somanchi",
     "Aditya Yuvaraj", "Bhushan Sananse", "Nilesh Rajkumar Dhanwate",
-    "Ranu Laoddha", "Pari Sharma", "Muskan Kaushal", "Kriti Suneha",
+    "Ranu Laddha", "Pari Sharma", "Muskan Kaushal", "Kriti Suneha",
     "Nikhitha VK", "Sandeep GS", "Aniket Grover", "Subhrat Ghoshal",
     "Hrushikesh Tilekar", "Jhelum Chowdhury", "Jaweriah Hazrana", "Dr. Ramakrishna"
 ])
