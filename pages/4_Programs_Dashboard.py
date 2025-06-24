@@ -178,7 +178,7 @@ if program_names_list: # Use the list of program names
                         new_spent_amount = st.number_input("New Spent Amount (₹)", min_value=0.00, value=current_task['spent'], step=100.00, key=f"new_spent_amount_{selected_program}_{selected_task_id}")
                         update_spent_button = st.form_submit_button("Update Task Spent")
 
-                        if update_button: # Assuming update_button is the submit button for this form
+                        if update_spent_button: # Assuming update_button is the submit button for this form
                             for i, task in enumerate(st.session_state.programs_data[selected_program]['tasks']):
                                 if task['id'] == selected_task_id:
                                     st.session_state.programs_data[selected_program]['tasks'][i]['spent'] = new_spent_amount
