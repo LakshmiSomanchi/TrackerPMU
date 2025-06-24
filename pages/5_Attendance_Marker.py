@@ -38,7 +38,7 @@ st.subheader("Mark Your Attendance")
 india_tz = pytz.timezone('Asia/Kolkata')
 current_time_ist = datetime.now(india_tz)
 
-current_location_input = st.text_input("Enter your Current Location (e.g., Office, Home, Client Site)", "Pune, Maharashtra, India")
+current_location_input = st.text_input("Enter your Current Location", "Pune, Maharashtra, India")
 st.info(f"Current Date & Time (IST): **{current_time_ist.strftime('%Y-%m-%d %H:%M:%S')}**")
 
 col1, col2 = st.columns(2)
