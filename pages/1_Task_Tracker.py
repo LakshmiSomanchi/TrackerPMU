@@ -24,7 +24,7 @@ tasks_data = {
     "Aditya Yuvaraj": [],
     "Bhushan Sananse": [],
     "Nilesh Rajkumar Dhanwate": [],
-    "Ranu Laoddha": [],
+    "Ranu Laddha": [],
     "Pari Sharma": [],
     "Muskan Kaushal": [],
     "Kriti Suneha": [],
