@@ -22,7 +22,7 @@ def get_initial_employee_data():
         "Aditya Yuvaraj": {"Title": "Assistant Manager", "Department": "PMU", "Reporting To": "Sachin WadapaLliwar", "Email": "aditya@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
         "Bhushan Sananse": {"Title": "Assistant Manager", "Department": "PMU", "Reporting To": "Sachin WadapaLliwar", "Email": "bhushan@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
         "Nilesh Rajkumar Dhanwate": {"Title": "Senior executive", "Department": "PMU", "Reporting To": "Shifali Sharma", "Email": "nilesh@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
-        "Ranu Laoddha": {"Title": "Associate - Field", "Department": "PMU", "Reporting To": "Shifali Sharma", "Email": "ranu@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
+        "Ranu Laddha": {"Title": "Associate - Field", "Department": "PMU", "Reporting To": "Shifali Sharma", "Email": "ranu@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
         "Pari Sharma": {"Title": "Associate - Field", "Department": "PMU", "Reporting To": "Shifali Sharma", "Email": "pari@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
         "Muskan Kaushal": {"Title": "Associate - Field", "Department": "PMU", "Reporting To": "Shifali Sharma", "Email": "muskan@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
         "Kriti Suneha": {"Title": "Employee", "Department": "PMU", "Reporting To": "Shifali Sharma", "Email": "kriti@example.com", "Phone": "(555) 555-5555", "Status": "Employee"},
