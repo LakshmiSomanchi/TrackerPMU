@@ -1,6 +1,9 @@
 # your_project_folder/Home.py
 import streamlit as st
-import os # Import os module to handle file paths
+# os module is no longer strictly needed if no file paths are being joined/checked,
+# but it doesn't hurt to keep it if you anticipate using it elsewhere.
+# For this specific request, it can be removed.
+# import os
 
 st.set_page_config(
     page_title="PMU Management Suite",
@@ -29,8 +32,6 @@ with col1:
     st.subheader("📊 Task Tracker")
     st.write("Manage individual employee tasks with Kanban cards.")
     st.markdown("<p style='font-size: smaller; color: gray;'>Organize, prioritize, and track progress.</p>", unsafe_allow_html=True)
-    # You could add a button here that, if clicked, could potentially navigate (though direct navigation between pages requires specific Streamlit mechanisms or links)
-    # st.button("Go to Task Tracker", key="go_task_tracker")
 
 with col2:
     st.subheader("👥 Employee Directory")
@@ -50,21 +51,19 @@ with col4:
     st.write("Get an overview of current and ongoing projects/programs.")
     st.markdown("<p style='font-size: smaller; color: gray;'>Track progress and key metrics at a glance.</p>", unsafe_allow_html=True)
 
-    # --- Displaying Your Figma Wireframe (as an image) ---
-    st.markdown("##### Wireframe Preview:")
-    try:
-        # Construct the path to your image
-        # This path is relative to the root of your Streamlit app (where Home.py is located)
-        # Assuming the structure: your_project_folder/assets/programs_dashboard_wireframe.png
-        image_path = os.path.join("assets", "programs_dashboard_wireframe.png")
-        st.image(image_path, caption="Programs Dashboard Wireframe (Design Preview)", use_container_width=True) # Changed to use_container_width
-        st.caption("This is a design mockup from Figma. Actual implementation may vary.")
-    except FileNotFoundError:
-        st.error(f"Error: Wireframe image '{image_path}' not found. Please ensure it's in the 'assets' folder relative to Home.py.")
-        st.info("If you're on Streamlit Cloud, double-check your GitHub repository structure.")
-    # --- End of Wireframe Image Display ---
+    # --- Figma Image Display Section REMOVED ---
+    # This section was here:
+    # st.markdown("##### Wireframe Preview:")
+    # try:
+    #     image_path = os.path.join("assets", "programs_dashboard_wireframe.png")
+    #     st.image(image_path, caption="Programs Dashboard Wireframe (Design Preview)", use_container_width=True)
+    #     st.caption("This is a design mockup from Figma. Actual implementation may vary.")
+    # except FileNotFoundError:
+    #     st.error(f"Error: Wireframe image '{image_path}' not found. Please ensure it's in the 'assets' folder relative to Home.py.")
+    #     st.info("If you're on Streamlit Cloud, double-check your GitHub repository structure.")
+    # --- End of REMOVED Section ---
 
-    # --- Adding a Link to a Live Figma Resource ---
+    # --- Retaining the Link to a Live Figma Resource ---
     st.markdown("---") # Separator
     st.markdown("### View Design Resources:")
     st.markdown("""
