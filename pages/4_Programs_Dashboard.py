@@ -139,27 +139,32 @@ if program_names_list: # Use the list of program names
             st.info(f"No tasks defined for '{selected_program}' yet.")
 
         # --- Add New Task to Program ---
-        st.markdown("##### Add New Task")
-        with st.form(f"add_task_form_{selected_program}"):
-            new_task_name = st.text_input("Task Name", key=f"new_task_name_{selected_program}")
-            new_task_description = st.text_area("Task Description", key=f"new_task_desc_{selected_program}")
-            initial_spent = st.number_input("Initial Spent for Task (₹)", min_value=0.00, value=0.00, step=100.00, key=f"initial_spent_{selected_program}")
-            add_task_button = st.form_submit_button("Add Task")
+st.markdown("##### Add New Task")
+with st.form(f"add_task_form_{selected_program}"):
+    new_task_name = st.text_input("Task Name", key=f"new_task_name_{selected_program}")
+    new_task_description = st.text_area("Task Description", key=f"new_task_desc_{selected_program}")
+    initial_spent = st.number_input("Initial Spent for Task (₹)", min_value=0.00, value=0.00, step=100.00, key=f"initial_spent_{selected_program}")
+    add_task_button = st.form_submit_button("Add Task")
 
-            if add_task_button:
-                if new_task_name:
-                    next_task_id = max([t['id'] for t in current_program['tasks']]) + 1 if current_program['tasks'] else 1
-                    new_task = {
-                        "id": next_task_id,
-                        "name": new_task_name,
-                        "description": new_task_description,
-                        "spent": initial_spent
-                    }
-                    st.session_state.programs_data[selected_program]['tasks'].append(new_task)
-                    st.success(f"Task '{new_task_name}' added to '{selected_program}'.")
-                    st.rerun()
-                else:
-                    st.error("Task name cannot be empty.")
+    if add_task_button:
+        if new_task_name:
+            next_task_id = max([t['id'] for t in current_program['tasks']]) + 1 if current_program['tasks'] else 1
+            new_task = {
+                "id": next_task_id,
+                "name": new_task_name,
+                "description": new_task_description,
+                "spent": initial_spent
+            }
+            st.session_state.programs_data[selected_program]['tasks'].append(new_task)
+
+            # Flash message for the field person
+            st.toast(
+                f"✅ New task '{new_task_name}' added to '{selected_program}'.",
+                icon="🚀"
+            )
+            st.rerun()
+        else:
+            st.error("Task name cannot be empty.")
 
         # --- Update Spent for Existing Task ---
         if current_program['tasks']:
