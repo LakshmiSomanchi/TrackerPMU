@@ -10,10 +10,15 @@ FARMERS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "farmers.parquet")
 BMCS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "bmcs.parquet")
 FIELD_TEAMS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "field_teams.parquet")
 
+# Google Sheets CSV File Paths (Manual Export)
+FARMERS_CSV_PATH = "path/to/your/farmers.csv"  # Replace with your actual path
+BMCS_CSV_PATH = "path/to/your/bmcs.csv"  # Replace with your actual path
+FIELD_TEAMS_CSV_PATH = "path/to/your/field_teams.csv"  # Replace with your actual path
+
 # Set page configuration for wider layout
 st.set_page_config(layout="wide")
 
-# --- Fallback Dummy Data (Only used if processed_data is not found) ---
+# --- Fallback Dummy Data (Only used if CSV or Parquet files are not found) ---
 # This is a safety net so the app doesn't completely break during development/testing
 # if the external data manager hasn't synced the files yet.
 FALLBACK_FARMERS_CSV = """
@@ -37,10 +42,22 @@ FT001,Ravi Kumar,Pune,5,Quality Improvement,2025-06-01,BMC001,,85
 @st.cache_data(show_spinner="Loading Ksheersagar data...")
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Attempts to load data from pre-processed Parquet files.
-    If not found, falls back to embedded dummy CSV data for testing.
+    Attempts to load data from manually exported CSV files, then Parquet files, and finally falls back to embedded dummy CSV data.
     """
-    # Check if processed data directory and files exist
+
+    # 1. Try loading from manually exported CSV files
+    try:
+        farmer_df = pd.read_csv(FARMERS_CSV_PATH)
+        bmc_df = pd.read_csv(BMCS_CSV_PATH)
+        field_team_df = pd.read_csv(FIELD_TEAMS_CSV_PATH)
+        st.success("Data loaded from manually exported CSV files!")
+        return farmer_df, bmc_df, field_team_df
+    except FileNotFoundError:
+        st.warning("Manually exported CSV files not found. Falling back to other data sources.")
+    except Exception as e:
+        st.error(f"Error loading data from manually exported CSV files: {e}. Falling back to other data sources.")
+
+    # 2. If CSV files fail, try loading from Parquet files
     if (os.path.exists(FARMERS_PARQUET_PATH) and
             os.path.exists(BMCS_PARQUET_PATH) and
             os.path.exists(FIELD_TEAMS_PARQUET_PATH)):
@@ -60,7 +77,7 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         st.info(
             "To use faster Parquet loading, please run `data_manager.py` locally and commit the `processed_data` folder to this repository.")
 
-    # Fallback: Load from embedded CSV strings
+    # 3. Fallback: Load from embedded CSV strings
     try:
         farmer_df = pd.read_csv(StringIO(FALLBACK_FARMERS_CSV))
         bmc_df = pd.read_csv(StringIO(FALLBACK_BMCS_CSV))
@@ -69,7 +86,6 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     except Exception as e:
         st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
         st.stop()  # Stop the app if no data can be loaded
-
 
 # --- KPI Calculation and Analysis Functions ---
 
@@ -185,7 +201,6 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
                         f"**Target:** Increase women empowerment participation rate to >65% within 3 months."
                     )
     return action_items
-
 
 # --- Load Data (The Page's Entry Point) ---
 farmer_df, bmc_df, field_team_df = load_data()
