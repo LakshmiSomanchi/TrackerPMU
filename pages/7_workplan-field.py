@@ -6,7 +6,7 @@ from typing import Tuple, Dict, List
 
 # --- Configuration ---
 # Excel File Configuration
-EXCEL_FILE_PATH = "path/to/your/LTD_9Litres_per_day.xlsx"  # Replace with your actual path
+EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"  # Replace with your actual path
 
 # Identifiers for splitting the data (Adjust these based on your Excel structure)
 FARMER_IDENTIFIER = "Farmer"  # Example:  If Farmer data has a column with "Farmer" in it
