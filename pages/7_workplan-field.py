@@ -1,20 +1,17 @@
 import streamlit as st
 import pandas as pd
 import os
-from io import StringIO  # Needed for fallback data
+from io import StringIO 
 from typing import Tuple, Dict, List
 
-# --- Configuration ---
-# Excel File Configuration
-EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"  # Replace with your actual path
 
-# Identifiers for splitting the data (Adjust these based on your Excel structure)
-FARMER_IDENTIFIER = "Farmer"  # Example:  If Farmer data has a column with "Farmer" in it
-BMC_IDENTIFIER = "BMC"  # Example: If BMC data has a column with "BMC" in it
-FIELD_TEAM_IDENTIFIER = "FieldTeam"  # Example: If Field Team data has a column with "FieldTeam" in it
-TRAINING_IDENTIFIER = "Training" # Example: If Training data has a column with "Training" in it
+EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx" 
 
-# Fallback Dummy Data (Only used if Excel file is not found)
+FARMER_IDENTIFIER = "Farmer"  
+BMC_IDENTIFIER = "BMC" 
+FIELD_TEAM_IDENTIFIER = "FieldTeam" 
+TRAINING_IDENTIFIER = "Training"
+
 FALLBACK_FARMERS_CSV = """
 Farmer_ID,Farmer_Name,Village,District,BMC_ID,Milk_Production_Liters_Daily,Cattle_Count,Women_Empowerment_Flag,Animal_Welfare_Score
 F001,Rajesh Kumar,Nandgaon,Pune,BMC001,15,5,No,4
@@ -53,21 +50,17 @@ Farmer's Training on CMP (25 mins),89,60,24,65,81,120,105,103,100,126,89,102,106
 Total,343,258,128,281,307,372,386,362,330,405,314,365,3851,30808
 """
 
-# Set page configuration for wider layout
 st.set_page_config(layout="wide")
 
-# --- Data Loading Function ---
 @st.cache_data(show_spinner="Loading Ksheersagar data...")
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Attempts to load data from an Excel file and split it into DataFrames, then falls back to embedded dummy CSV data.
     """
 
-    # 1. Try loading and splitting from the Excel file
     try:
         all_data_df = pd.read_excel(EXCEL_FILE_PATH)
 
-        # --- Split the DataFrame based on identifiers ---
         farmer_df = all_data_df[all_data_df.apply(lambda row: any(str(FARMER_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
         bmc_df = all_data_df[all_data_df.apply(lambda row: any(str(BMC_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
         field_team_df = all_data_df[all_data_df.apply(lambda row: any(str(FIELD_TEAM_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
@@ -82,7 +75,6 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
     except Exception as e:
         st.error(f"Error loading/splitting data from the Excel file: {e}. Falling back to dummy data.")
 
-    # 2. Fallback: Load from embedded CSV strings
     try:
         farmer_df = pd.read_csv(StringIO(FALLBACK_FARMERS_CSV))
         bmc_df = pd.read_csv(StringIO(FALLBACK_BMCS_CSV))
@@ -92,22 +84,18 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
         return farmer_df, bmc_df, field_team_df, training_df, summary_df
     except Exception as e:
         st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
-        st.stop()  # Stop the app if no data can be loaded
-
-# --- KPI Calculation and Analysis Functions ---
+        st.stop()
 
 def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     """
     Analyzes BMC data against KPIs and identifies low-performing BMCs.
     Returns a dictionary of low-performing BMCs for each KPI.
     """
-    # Ensure 'Date' column is datetime for filtering latest data
     if 'Date' in bmc_df.columns:
         bmc_df['Date'] = pd.to_datetime(bmc_df['Date'])
-        # Get the latest data for each BMC
         latest_bmc_df = bmc_df.loc[bmc_df.groupby('BMC_ID')['Date'].idxmax()]
     else:
-        latest_bmc_df = bmc_df.copy()  # Use as is if no date column
+        latest_bmc_df = bmc_df.copy() 
 
     low_performing_bmcs = {
         'Quality': pd.DataFrame(),
@@ -116,8 +104,6 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
         'Women_Empowerment': pd.DataFrame()
     }
 
-    # --- KPI: Quality ---
-    # Placeholder Thresholds - PLEASE ADJUST THESE VALUES BASED ON YOUR BUSINESS RULES
     QUALITY_FAT_THRESHOLD = 3.5
     QUALITY_SNF_THRESHOLD = 7.8
 
@@ -125,36 +111,33 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
     low_quality_snf = latest_bmc_df[latest_bmc_df['Quality_SNF_Percentage'] < QUALITY_SNF_THRESHOLD]
     adulteration_issues = latest_bmc_df[latest_bmc_df['Quality_Adulteration_Flag'].astype(str).str.lower() == 'yes']
 
-    # Combine all quality issues
     low_performing_bmcs['Quality'] = pd.concat([low_quality_fat, low_quality_snf, adulteration_issues]).drop_duplicates(
         subset=['BMC_ID'])
     if not low_performing_bmcs['Quality'].empty:
         low_performing_bmcs['Quality']['Reason'] = 'Low Fat/SNF or Adulteration'
 
-    # --- KPI: Utilization ---
     if 'Daily_Collection_Liters' in latest_bmc_df.columns and 'Capacity_Liters' in latest_bmc_df.columns:
         latest_bmc_df['Utilization_Percentage_Calculated'] = (
                                                                        latest_bmc_df['Daily_Collection_Liters'] /
                                                                        latest_bmc_df['Capacity_Liters']) * 100
-        # Placeholder Threshold
-        UTILIZATION_THRESHOLD = 70.0  # Below 70% is considered low
+        
+        UTILIZATION_THRESHOLD = 70.0  
         low_performing_bmcs['Utilization'] = latest_bmc_df[
             latest_bmc_df['Utilization_Percentage_Calculated'] < UTILIZATION_THRESHOLD]
         if not low_performing_bmcs['Utilization'].empty:
             low_performing_bmcs['Utilization']['Reason'] = 'Low Utilization'
 
-    # --- KPI: Animal Welfare Farms ---
-    # Placeholder Threshold
-    ANIMAL_WELFARE_THRESHOLD = 4.0  # Below 4.0 is considered low
+    
+    
+    ANIMAL_WELFARE_THRESHOLD = 4.0  
     if 'Animal_Welfare_Compliance_Score_BMC' in latest_bmc_df.columns:
         low_performing_bmcs['Animal_Welfare'] = latest_bmc_df[
             latest_bmc_df['Animal_Welfare_Compliance_Score_BMC'] < ANIMAL_WELFARE_THRESHOLD]
         if not low_performing_bmcs['Animal_Welfare'].empty:
             low_performing_bmcs['Animal_Welfare']['Reason'] = 'Low Animal Welfare Score'
 
-    # --- KPI: Women Empowerment ---
-    # Placeholder Threshold
-    WOMEN_EMPOWERMENT_THRESHOLD = 55.0  # Below 55% participation is considered low
+    
+    WOMEN_EMPOWERMENT_THRESHOLD = 55.0  
     if 'Women_Empowerment_Participation_Rate_BMC' in latest_bmc_df.columns:
         low_performing_bmcs['Women_Empowerment'] = latest_bmc_df[
             latest_bmc_df['Women_Empowerment_Participation_Rate_BMC'] < WOMEN_EMPOWERMENT_THRESHOLD]
@@ -174,7 +157,7 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
         if not df.empty:
             for index, row in df.iterrows():
                 bmc_id = row['BMC_ID']
-                district = row['District']  # Assuming District is always available
+                district = row['District'] 
 
                 if kpi == 'Quality':
                     current_fat = row.get('Quality_Fat_Percentage', 'N/A')
@@ -187,7 +170,7 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
                     )
                 elif kpi == 'Utilization':
                     current_util = row.get('Utilization_Percentage_Calculated', 'N/A')
-                    target_util = row.get('Utilization_Target_Percentage', '80')  # Default for targets
+                    target_util = row.get('Utilization_Target_Percentage', '80')  
                     action_items.append(
                         f"BMC {bmc_id} (District: {district}) has **Low Utilization** ({current_util:.2f}%). "
                         f"**Action:** Identify reasons for low collection, farmer mobilization, improve logistics. "
@@ -209,15 +192,15 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
                     )
     return action_items
 
-# --- Load Data (The Page's Entry Point) ---
+
 farmer_df, bmc_df, field_team_df, training_df, summary_df = load_data()
 
-# --- Streamlit Page Layout ---
+
 
 st.title("Ksheersagar Dairy Performance Dashboard & Workplan")
 st.markdown("---")
 
-# --- Training Performance Dashboard Integration ---
+
 st.header("Training Performance")
 st.markdown("---")
 
@@ -228,7 +211,7 @@ st.dataframe(training_df, use_container_width=True)
 st.subheader("📈 Training Summary Totals")
 st.dataframe(summary_df, use_container_width=True)
 
-# --- Optional Visualizations ---
+
 col1, col2 = st.columns(2)
 
 with col1:
@@ -241,12 +224,10 @@ with col2:
         farmer_data = summary_df.set_index("Training_Topic")["No_of_Farmers"]
         st.bar_chart(farmer_data)
 
-# --- End of training_summary module ---
 
 st.markdown("---")
 st.header("Data Overview & KPI Analysis")
 
-# Display loaded dataframes (optional, for verification)
 with st.expander("Show Raw Data Previews"):
     st.subheader("Farmer Data")
     st.dataframe(farmer_df.head())
@@ -260,7 +241,6 @@ with st.expander("Show Raw Data Previews"):
 st.markdown("---")
 st.header("KPI Performance Analysis")
 
-# Run analysis instantly
 low_performing_bmcs = analyze_bmcs(bmc_df, farmer_df)
 
 if any(not df.empty for df in low_performing_bmcs.values()):
