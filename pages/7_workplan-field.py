@@ -6,7 +6,7 @@ from typing import Tuple, Dict, List
 
 # --- Configuration ---
 PROCESSED_DATA_DIR = "processed_data"  # This directory must be in THIS repository
-LTD_CSV_PATH = "path/to/your/LTD_9Litres_per_day.csv"  # Replace with your actual path
+LTD_CSV_PATH = "https://docs.google.com/spreadsheets/d/1cVQ1HZNIQO2baLlDl3uDs0Xu3CLZkRDy/edit?usp=drive_link&ouid=111836593698629007864&rtpof=true&sd=true"  # Replace with your actual path
 
 # Identifiers for splitting the data (Adjust these based on your CSV structure)
 FARMER_IDENTIFIER = "Farmer"  # Example:  If Farmer data has a column with "Farmer" in it
