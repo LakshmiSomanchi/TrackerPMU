@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
-from io import StringIO # Needed for fallback data
+from io import StringIO  # Needed for fallback data
+from typing import Tuple, Dict, List
 
 # --- Configuration ---
-PROCESSED_DATA_DIR = "processed_data" # This directory must be in THIS repository
+PROCESSED_DATA_DIR = "processed_data"  # This directory must be in THIS repository
 FARMERS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "farmers.parquet")
 BMCS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "bmcs.parquet")
 FIELD_TEAMS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "field_teams.parquet")
@@ -32,18 +33,17 @@ Team_ID,Team_Leader,District_Coverage,Max_BMC_Coverage,Training_Type,Training_Da
 FT001,Ravi Kumar,Pune,5,Quality Improvement,2025-06-01,BMC001,,85
 """
 
-
 # --- Data Loading Function ---
 @st.cache_data(show_spinner="Loading Ksheersagar data...")
-def load_data():
+def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Attempts to load data from pre-processed Parquet files.
     If not found, falls back to embedded dummy CSV data for testing.
     """
     # Check if processed data directory and files exist
     if (os.path.exists(FARMERS_PARQUET_PATH) and
-        os.path.exists(BMCS_PARQUET_PATH) and
-        os.path.exists(FIELD_TEAMS_PARQUET_PATH)):
+            os.path.exists(BMCS_PARQUET_PATH) and
+            os.path.exists(FIELD_TEAMS_PARQUET_PATH)):
         try:
             farmer_df = pd.read_parquet(FARMERS_PARQUET_PATH)
             bmc_df = pd.read_parquet(BMCS_PARQUET_PATH)
@@ -51,12 +51,14 @@ def load_data():
             st.success("Data loaded from Parquet files!")
             return farmer_df, bmc_df, field_team_df
         except Exception as e:
-            st.error(f"Error loading data from Parquet files: {e}. Falling back to embedded dummy data.")
+            st.error(
+                f"Error loading data from Parquet files: {e}. Falling back to embedded dummy data.")
             # Fall through to load embedded data if Parquet fails
     else:
-        st.warning("Processed Parquet data not found. Loading from embedded dummy data for prototype.")
-        st.info("To use faster Parquet loading, please run `data_manager.py` locally and commit the `processed_data` folder to this repository.")
-
+        st.warning(
+            "Processed Parquet data not found. Loading from embedded dummy data for prototype.")
+        st.info(
+            "To use faster Parquet loading, please run `data_manager.py` locally and commit the `processed_data` folder to this repository.")
 
     # Fallback: Load from embedded CSV strings
     try:
@@ -66,12 +68,12 @@ def load_data():
         return farmer_df, bmc_df, field_team_df
     except Exception as e:
         st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
-        st.stop() # Stop the app if no data can be loaded
+        st.stop()  # Stop the app if no data can be loaded
 
 
-# --- KPI Calculation and Analysis Functions (remain the same) ---
+# --- KPI Calculation and Analysis Functions ---
 
-def analyze_bmcs(bmc_df, farmer_df):
+def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     """
     Analyzes BMC data against KPIs and identifies low-performing BMCs.
     Returns a dictionary of low-performing BMCs for each KPI.
@@ -82,7 +84,7 @@ def analyze_bmcs(bmc_df, farmer_df):
         # Get the latest data for each BMC
         latest_bmc_df = bmc_df.loc[bmc_df.groupby('BMC_ID')['Date'].idxmax()]
     else:
-        latest_bmc_df = bmc_df.copy() # Use as is if no date column
+        latest_bmc_df = bmc_df.copy()  # Use as is if no date column
 
     low_performing_bmcs = {
         'Quality': pd.DataFrame(),
@@ -101,40 +103,45 @@ def analyze_bmcs(bmc_df, farmer_df):
     adulteration_issues = latest_bmc_df[latest_bmc_df['Quality_Adulteration_Flag'].astype(str).str.lower() == 'yes']
 
     # Combine all quality issues
-    low_performing_bmcs['Quality'] = pd.concat([low_quality_fat, low_quality_snf, adulteration_issues]).drop_duplicates(subset=['BMC_ID'])
+    low_performing_bmcs['Quality'] = pd.concat([low_quality_fat, low_quality_snf, adulteration_issues]).drop_duplicates(
+        subset=['BMC_ID'])
     if not low_performing_bmcs['Quality'].empty:
         low_performing_bmcs['Quality']['Reason'] = 'Low Fat/SNF or Adulteration'
 
-
     # --- KPI: Utilization ---
     if 'Daily_Collection_Liters' in latest_bmc_df.columns and 'Capacity_Liters' in latest_bmc_df.columns:
-        latest_bmc_df['Utilization_Percentage_Calculated'] = (latest_bmc_df['Daily_Collection_Liters'] / latest_bmc_df['Capacity_Liters']) * 100
+        latest_bmc_df['Utilization_Percentage_Calculated'] = (
+                                                                       latest_bmc_df['Daily_Collection_Liters'] /
+                                                                       latest_bmc_df['Capacity_Liters']) * 100
         # Placeholder Threshold
-        UTILIZATION_THRESHOLD = 70.0 # Below 70% is considered low
-        low_performing_bmcs['Utilization'] = latest_bmc_df[latest_bmc_df['Utilization_Percentage_Calculated'] < UTILIZATION_THRESHOLD]
+        UTILIZATION_THRESHOLD = 70.0  # Below 70% is considered low
+        low_performing_bmcs['Utilization'] = latest_bmc_df[
+            latest_bmc_df['Utilization_Percentage_Calculated'] < UTILIZATION_THRESHOLD]
         if not low_performing_bmcs['Utilization'].empty:
             low_performing_bmcs['Utilization']['Reason'] = 'Low Utilization'
 
     # --- KPI: Animal Welfare Farms ---
     # Placeholder Threshold
-    ANIMAL_WELFARE_THRESHOLD = 4.0 # Below 4.0 is considered low
+    ANIMAL_WELFARE_THRESHOLD = 4.0  # Below 4.0 is considered low
     if 'Animal_Welfare_Compliance_Score_BMC' in latest_bmc_df.columns:
-        low_performing_bmcs['Animal_Welfare'] = latest_bmc_df[latest_bmc_df['Animal_Welfare_Compliance_Score_BMC'] < ANIMAL_WELFARE_THRESHOLD]
+        low_performing_bmcs['Animal_Welfare'] = latest_bmc_df[
+            latest_bmc_df['Animal_Welfare_Compliance_Score_BMC'] < ANIMAL_WELFARE_THRESHOLD]
         if not low_performing_bmcs['Animal_Welfare'].empty:
             low_performing_bmcs['Animal_Welfare']['Reason'] = 'Low Animal Welfare Score'
 
     # --- KPI: Women Empowerment ---
     # Placeholder Threshold
-    WOMEN_EMPOWERMENT_THRESHOLD = 55.0 # Below 55% participation is considered low
+    WOMEN_EMPOWERMENT_THRESHOLD = 55.0  # Below 55% participation is considered low
     if 'Women_Empowerment_Participation_Rate_BMC' in latest_bmc_df.columns:
-        low_performing_bmcs['Women_Empowerment'] = latest_bmc_df[latest_bmc_df['Women_Empowerment_Participation_Rate_BMC'] < WOMEN_EMPOWERMENT_THRESHOLD]
+        low_performing_bmcs['Women_Empowerment'] = latest_bmc_df[
+            latest_bmc_df['Women_Empowerment_Participation_Rate_BMC'] < WOMEN_EMPOWERMENT_THRESHOLD]
         if not low_performing_bmcs['Women_Empowerment'].empty:
             low_performing_bmcs['Women_Empowerment']['Reason'] = 'Low Women Empowerment Rate'
 
     return low_performing_bmcs
 
 
-def generate_actionable_targets(low_bmcs_dict):
+def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[str]:
     """
     Generates actionable insights and suggested targets for low-performing BMCs.
     This is a simplified example. Real logic would be more complex.
@@ -144,7 +151,7 @@ def generate_actionable_targets(low_bmcs_dict):
         if not df.empty:
             for index, row in df.iterrows():
                 bmc_id = row['BMC_ID']
-                district = row['District'] # Assuming District is always available
+                district = row['District']  # Assuming District is always available
 
                 if kpi == 'Quality':
                     current_fat = row.get('Quality_Fat_Percentage', 'N/A')
@@ -157,7 +164,7 @@ def generate_actionable_targets(low_bmcs_dict):
                     )
                 elif kpi == 'Utilization':
                     current_util = row.get('Utilization_Percentage_Calculated', 'N/A')
-                    target_util = row.get('Utilization_Target_Percentage', '80') # Default for targets
+                    target_util = row.get('Utilization_Target_Percentage', '80')  # Default for targets
                     action_items.append(
                         f"BMC {bmc_id} (District: {district}) has **Low Utilization** ({current_util:.2f}%). "
                         f"**Action:** Identify reasons for low collection, farmer mobilization, improve logistics. "
@@ -179,6 +186,7 @@ def generate_actionable_targets(low_bmcs_dict):
                     )
     return action_items
 
+
 # --- Load Data (The Page's Entry Point) ---
 farmer_df, bmc_df, field_team_df = load_data()
 
@@ -187,7 +195,63 @@ farmer_df, bmc_df, field_team_df = load_data()
 st.title("Ksheersagar Dairy Performance Dashboard & Workplan")
 st.markdown("---")
 
-# Main content area
+# --- Training Performance Dashboard Integration ---
+st.header("Training Performance")
+st.markdown("---")
+
+# --- Embedded Training Data Tables ---
+TRAINING_DATA = """
+Training_Topic,Aug'23,Sep'23,Oct'23,Nov'23,Dec'23,Jan'24,Feb'24,Mar'24,Apr'24,May'24,Jun'24,Jul'24,Aug'24,Sep'24,Oct'24,Nov'24,Dec'24,Sum_Till_Date
+Farmer's Training on AW (25 mins),92,31,15,19,11,17,17,6,17,17,21,28,20,15,20,17,17,380
+Women Farmer's Training on Dairy Business (25 mins),73,32,30,16,16,41,42,14,43,43,66,58,56,42,42,63,93,770
+Farmer's Training on Breeding and Nutrition (25 mins),83,31,15,40,43,71,46,18,48,54,82,81,94,54,63,70,70,963
+Farmer's Training on Clean Milk Prod. (25 mins),107,67,41,65,52,66,42,18,60,71,92,88,91,81,97,76,74,1188
+Farmer's Training on AW (25 mins) (Women),7,22,34,18,28,23,17,6,14,16,28,18,11,18,29,13,28,330
+Women Farmer's Training on Dairy Business (25 mins) (Women),6,20,32,15,28,18,13,5,14,12,22,16,9,15,25,10,23,283
+Farmer's Training on Breeding and Nutrition (25 mins) (Women),6,24,36,18,28,23,17,6,18,16,27,19,12,18,29,13,24,334
+Farmer's Training on CMP (25 mins) (Women),7,24,35,18,28,23,18,6,5,10,28,17,12,19,29,13,28,320
+"""
+
+SUMMARY_DATA = """
+Training_Topic,Jan'24,Feb'24,Mar'24,Apr'24,May'24,Jun'24,Jul'24,Aug'24,Sep'24,Oct'24,Nov'24,Dec'24,Total_Training,No_of_Farmers
+Farmer's Training on AW (25 mins),40,34,12,31,33,49,46,31,33,49,30,45,433,3464
+Women Farmer's Training on Dairy Business (25 mins),120,101,68,119,123,94,135,122,125,138,112,124,1381,11048
+Farmer's Training on Breeding and Nutrition (25 mins),94,63,24,66,70,109,100,106,72,92,83,94,973,7784
+Farmer's Training on CMP (25 mins),89,60,24,65,81,120,105,103,100,126,89,102,1064,8512
+Total,343,258,128,281,307,372,386,362,330,405,314,365,3851,30808
+"""
+
+@st.cache_data(show_spinner=False)
+def load_training_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
+    training_df = pd.read_csv(StringIO(TRAINING_DATA))
+    summary_df = pd.read_csv(StringIO(SUMMARY_DATA))
+    return training_df, summary_df
+
+training_df, summary_df = load_training_data()
+
+# --- Display Raw Tables ---
+st.subheader("📊 Monthly Training Breakdown")
+st.dataframe(training_df, use_container_width=True)
+
+st.subheader("📈 Training Summary Totals")
+st.dataframe(summary_df, use_container_width=True)
+
+# --- Optional Visualizations ---
+col1, col2 = st.columns(2)
+
+with col1:
+    if st.checkbox("Show Total Trainings per Topic"):
+        chart_data = summary_df.set_index("Training_Topic")["Total_Training"]
+        st.bar_chart(chart_data)
+
+with col2:
+    if st.checkbox("Show Total Farmers Reached per Topic"):
+        farmer_data = summary_df.set_index("Training_Topic")["No_of_Farmers"]
+        st.bar_chart(farmer_data)
+
+# --- End of training_summary module ---
+
+st.markdown("---")
 st.header("Data Overview & KPI Analysis")
 
 # Display loaded dataframes (optional, for verification)
