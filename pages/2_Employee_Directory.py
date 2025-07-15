@@ -5,9 +5,6 @@ st.set_page_config(layout="wide", page_title="Employee Directory")
 
 st.title("👥 Employee Directory")
 st.markdown("---")
-
-# This data should ideally come from a persistent source, but for now, we'll re-define
-# a basic employee list. In Phase 3, all this data will be loaded from a single source.
 employee_list_data = {
     "Rupesh Mukherjee": {"Title": "Associate Practice Leader", "Department": "PMU", "Reporting To": "N/A"},
     "Shifali Sharma": {"Title": "Project Manager", "Department": "PMU", "Reporting To": "Rupesh Mukherjee"},
@@ -38,10 +35,9 @@ employee_list_data = {
     "Dr. Ramakrishna": {"Title": "Consultant", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Status": "Contractor"},
 }
 
-# Convert the dictionary to a pandas DataFrame for easy display
 employees_df = pd.DataFrame.from_dict(employee_list_data, orient='index')
-employees_df.index.name = "Name" # Set the index name to "Name"
-employees_df = employees_df.reset_index() # Convert index to a column
+employees_df.index.name = "Name" 
+employees_df = employees_df.reset_index() 
 
 st.dataframe(employees_df, use_container_width=True)
 
