@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 import os
+from io import StringIO # Needed for fallback data
 
-# --- Configuration (These paths assume your app is run from the root,
-#                     and 'processed_data' is at the root) ---
-PROCESSED_DATA_DIR = "processed_data"
+# --- Configuration ---
+PROCESSED_DATA_DIR = "processed_data" # This directory must be in THIS repository
 FARMERS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "farmers.parquet")
 BMCS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "bmcs.parquet")
 FIELD_TEAMS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "field_teams.parquet")
@@ -12,31 +12,62 @@ FIELD_TEAMS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "field_teams.parquet
 # Set page configuration for wider layout
 st.set_page_config(layout="wide")
 
-# --- Data Loading Function (from Parquet) ---
-@st.cache_data(show_spinner="Loading Ksheersagar data from processed files...")
-def load_processed_data():
-    """
-    Loads data from pre-processed Parquet files.
-    This function is optimized for speed using cached Parquet reads.
-    Assumes these files are present in the 'processed_data' directory.
-    """
-    if not (os.path.exists(FARMERS_PARQUET_PATH) and
-            os.path.exists(BMCS_PARQUET_PATH) and
-            os.path.exists(FIELD_TEAMS_PARQUET_PATH)):
-        st.error("Error: Processed Ksheersagar data files not found. "
-                 "Please ensure 'processed_data' directory and its .parquet files "
-                 "are present in your GitHub repository. Run `python data_manager.py` locally.")
-        st.stop() # Stop the app from running further if data cannot be loaded
+# --- Fallback Dummy Data (Only used if processed_data is not found) ---
+# This is a safety net so the app doesn't completely break during development/testing
+# if the external data manager hasn't synced the files yet.
+FALLBACK_FARMERS_CSV = """
+Farmer_ID,Farmer_Name,Village,District,BMC_ID,Milk_Production_Liters_Daily,Cattle_Count,Women_Empowerment_Flag,Animal_Welfare_Score
+F001,Rajesh Kumar,Nandgaon,Pune,BMC001,15,5,No,4
+F002,Priya Sharma,Lonikand,Pune,BMC002,22,8,Yes,5
+F003,Amit Singh,Shirur,Pune,BMC001,18,6,No,3
+"""
+FALLBACK_BMCS_CSV = """
+BMC_ID,BMC_Name,District,Capacity_Liters,Daily_Collection_Liters,Quality_Fat_Percentage,Quality_SNF_Percentage,Quality_Adulteration_Flag,Quality_Target_Fat,Quality_Target_SNF,Utilization_Target_Percentage,Animal_Welfare_Compliance_Score_BMC,Women_Empowerment_Participation_Rate_BMC,Date
+BMC001,Nandgaon BMC,Pune,1000,750,3.5,8.0,No,3.8,8.2,80,4.0,50,2025-07-15
+BMC002,Lonikand BMC,Pune,1200,800,3.2,7.8,Yes,3.8,8.2,80,4.5,70,2025-07-15
+BMC003,Daund BMC,Pune,800,700,3.9,8.1,No,3.8,8.2,80,4.2,60,2025-07-15
+"""
+FALLBACK_FIELD_TEAMS_CSV = """
+Team_ID,Team_Leader,District_Coverage,Max_BMC_Coverage,Training_Type,Training_Date,BMC_ID_Trained,Farmer_ID_Trained,Training_Outcome_Score
+FT001,Ravi Kumar,Pune,5,Quality Improvement,2025-06-01,BMC001,,85
+"""
 
+
+# --- Data Loading Function ---
+@st.cache_data(show_spinner="Loading Ksheersagar data...")
+def load_data():
+    """
+    Attempts to load data from pre-processed Parquet files.
+    If not found, falls back to embedded dummy CSV data for testing.
+    """
+    # Check if processed data directory and files exist
+    if (os.path.exists(FARMERS_PARQUET_PATH) and
+        os.path.exists(BMCS_PARQUET_PATH) and
+        os.path.exists(FIELD_TEAMS_PARQUET_PATH)):
+        try:
+            farmer_df = pd.read_parquet(FARMERS_PARQUET_PATH)
+            bmc_df = pd.read_parquet(BMCS_PARQUET_PATH)
+            field_team_df = pd.read_parquet(FIELD_TEAMS_PARQUET_PATH)
+            st.success("Data loaded from Parquet files!")
+            return farmer_df, bmc_df, field_team_df
+        except Exception as e:
+            st.error(f"Error loading data from Parquet files: {e}. Falling back to embedded dummy data.")
+            # Fall through to load embedded data if Parquet fails
+    else:
+        st.warning("Processed Parquet data not found. Loading from embedded dummy data for prototype.")
+        st.info("To use faster Parquet loading, please run `data_manager.py` locally and commit the `processed_data` folder to this repository.")
+
+
+    # Fallback: Load from embedded CSV strings
     try:
-        farmer_df = pd.read_parquet(FARMERS_PARQUET_PATH)
-        bmc_df = pd.read_parquet(BMCS_PARQUET_PATH)
-        field_team_df = pd.read_parquet(FIELD_TEAMS_PARQUET_PATH)
+        farmer_df = pd.read_csv(StringIO(FALLBACK_FARMERS_CSV))
+        bmc_df = pd.read_csv(StringIO(FALLBACK_BMCS_CSV))
+        field_team_df = pd.read_csv(StringIO(FALLBACK_FIELD_TEAMS_CSV))
         return farmer_df, bmc_df, field_team_df
     except Exception as e:
-        st.error(f"Critical error loading Ksheersagar processed data: {e}")
-        st.stop()
-        return None, None, None
+        st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
+        st.stop() # Stop the app if no data can be loaded
+
 
 # --- KPI Calculation and Analysis Functions (remain the same) ---
 
@@ -149,7 +180,7 @@ def generate_actionable_targets(low_bmcs_dict):
     return action_items
 
 # --- Load Data (The Page's Entry Point) ---
-farmer_df, bmc_df, field_team_df = load_processed_data()
+farmer_df, bmc_df, field_team_df = load_data()
 
 # --- Streamlit Page Layout ---
 
