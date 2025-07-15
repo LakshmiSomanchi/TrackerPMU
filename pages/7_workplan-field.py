@@ -11,7 +11,7 @@ BMCS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "bmcs.parquet")
 FIELD_TEAMS_PARQUET_PATH = os.path.join(PROCESSED_DATA_DIR, "field_teams.parquet")
 
 # Google Sheets CSV File Paths (Manual Export)
-FARMERS_CSV_PATH = "path/to/your/farmers.csv"  # Replace with your actual path
+FARMERS_CSV_PATH = "https://docs.google.com/spreadsheets/d/1cVQ1HZNIQO2baLlDl3uDs0Xu3CLZkRDy/edit?usp=sharing&ouid=111836593698629007864&rtpof=true&sd=true"  # Replace with your actual path
 BMCS_CSV_PATH = "path/to/your/bmcs.csv"  # Replace with your actual path
 FIELD_TEAMS_CSV_PATH = "path/to/your/field_teams.csv"  # Replace with your actual path
 
