@@ -2,22 +2,18 @@ import streamlit as st
 from datetime import datetime
 import json
 import os
-import pytz # For timezone awareness
-
+import pytz 
 st.set_page_config(layout="wide", page_title="Attendance Marker")
 
 st.title("⏰ Attendance Marker")
 st.markdown("---")
 
-# --- Attendance Data Storage (Placeholder for now, will be persistent later) ---
-ATTENDANCE_FILE = "attendance_records.json" # We'll make this persistent in the next phase
+ATTENDANCE_FILE = "attendance_records.json" 
 
-# Initialize attendance records in session state
+
 if 'attendance_records' not in st.session_state:
-    st.session_state.attendance_records = {} # {employee_name: [{timestamp: ..., type: ..., location: ...}, ...]}
+    st.session_state.attendance_records = {} 
 
-# --- Employee Selection (Same list as task tracker for consistency) ---
-# This list should ideally be loaded from a central source (e.g., employee_full_details)
 employee_names = sorted([
     "Rupesh Mukherjee", "Shifali Sharma", "Kuntal Dutta", "Sachin WadapaLliwar",
     "Dr. Guru Mohan Reddy", "K Balaji", "Bhavya Kharoo", "Gautam Bagada",
@@ -31,10 +27,8 @@ employee_names = sorted([
 selected_employee_attendance = st.selectbox("Select Your Name for Attendance", employee_names)
 st.markdown("---")
 
-# --- Manual Location Input for now (Geotagging is complex for free tier) ---
 st.subheader("Mark Your Attendance")
 
-# Get current time in Indian Standard Time (IST)
 india_tz = pytz.timezone('Asia/Kolkata')
 current_time_ist = datetime.now(india_tz)
 
@@ -77,9 +71,9 @@ st.markdown("---")
 st.subheader(f"Attendance History for {selected_employee_attendance}")
 
 if selected_employee_attendance in st.session_state.attendance_records and st.session_state.attendance_records[selected_employee_attendance]:
-    # Display recent attendance records
+    
     attendance_df = pd.DataFrame(st.session_state.attendance_records[selected_employee_attendance])
-    attendance_df['timestamp'] = pd.to_datetime(attendance_df['timestamp']) # Convert to datetime objects
+    attendance_df['timestamp'] = pd.to_datetime(attendance_df['timestamp']) 
     attendance_df = attendance_df.sort_values(by='timestamp', ascending=False)
     st.dataframe(attendance_df, use_container_width=True)
 else:
@@ -95,5 +89,3 @@ For a production system, you would typically use:
 -   **Integration with APIs:** For more robust location services.
 For now, we are using a manual text input for location.
 """)
-
-# We need to add 'pytz' to our requirements.txt for timezone awareness
