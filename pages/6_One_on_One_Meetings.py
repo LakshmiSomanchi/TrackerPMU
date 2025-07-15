@@ -1,4 +1,3 @@
-# your_project_folder/pages/6_One_on_One_Meetings.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -12,14 +11,9 @@ st.set_page_config(
 st.title("🤝 One-on-One Meeting Management")
 st.markdown("Streamline your one-on-one discussions with employees.")
 
-# --- Session State Initialization for Meeting Data ---
-# This dictionary will store our meeting data.
-# In a real app, this would come from a database or persistent storage.
 if 'meetings' not in st.session_state:
     st.session_state.meetings = []
 
-# --- Hardcoded Employee Names for this page (NOT from data_manager.py) ---
-# These are the employee names you provided earlier.
 employee_names = sorted([
     "Rupesh Mukherjee",
     "Shifali Sharma",
@@ -50,19 +44,14 @@ employee_names = sorted([
     "Dr. Ramakrishna"
 ])
 
-
-# --- Section: Schedule New One-on-One Meeting ---
 st.header("🗓️ Schedule a New Meeting")
-# Only show the form if there are employees to select
 if employee_names:
     with st.form("meeting_scheduler_form"):
         col1, col2 = st.columns(2)
         with col1:
             selected_employee = st.selectbox("Select Employee", employee_names, key="schedule_employee")
-            # Set default date to today, ensuring it's a date object
             meeting_date = st.date_input("Meeting Date", datetime.now().date(), key="schedule_date")
         with col2:
-            # Defaulting time to current hour for convenience
             current_hour = datetime.now().strftime("%H")
             meeting_time_str = st.text_input("Meeting Time (e.g., 10:00 AM or 14:30)", f"{current_hour}:00", key="schedule_time")
             meeting_purpose = st.text_area("Meeting Purpose/Topic", key="schedule_purpose")
@@ -70,9 +59,7 @@ if employee_names:
         submitted = st.form_submit_button("Schedule Meeting")
         if submitted:
             try:
-                # Combine date and time
-                # Try parsing with both 12-hour (AM/PM) and 24-hour formats
-                time_formats = ["%I:%M %p", "%H:%M"] # Try AM/PM first, then 24-hour
+                time_formats = ["%I:%M %p", "%H:%M"] 
                 parsed_time = None
                 for fmt in time_formats:
                     try:
@@ -87,38 +74,36 @@ if employee_names:
                 meeting_datetime = datetime.combine(meeting_date, parsed_time)
 
                 new_meeting = {
-                    "id": len(st.session_state.meetings) + 1, # Simple ID generation
+                    "id": len(st.session_state.meetings) + 1, 
                     "employee": selected_employee,
                     "datetime": meeting_datetime,
                     "purpose": meeting_purpose,
-                    "agenda": "", # Placeholder for agenda
-                    "mom": ""     # Placeholder for Minutes of Meeting
+                    "agenda": "", 
+                    "mom": ""  
                 }
                 st.session_state.meetings.append(new_meeting)
                 st.success(f"Meeting with **{selected_employee}** scheduled for **{meeting_datetime.strftime('%Y-%m-%d %I:%M %p')}**!")
-                st.rerun() # Rerun to clear form after submission and refresh display
+                st.rerun() 
             except ValueError as e:
                 st.error(f"Error scheduling meeting: {e}. Please use HH:MM AM/PM (e.g., 10:00 AM) or HH:MM (e.g., 14:30).")
 else:
     st.warning("No employee names defined in this page. Please add names to the 'employee_names' list.")
 
-st.markdown("---") # Separator
+st.markdown("---") 
 
-# --- Section: Upcoming Meetings ---
+
 st.header("📋 Upcoming Meetings")
 if st.session_state.meetings:
-    # Sort meetings by date and time
+    
     sorted_meetings = sorted(st.session_state.meetings, key=lambda x: x['datetime'])
 
     meetings_df = pd.DataFrame(sorted_meetings)
-    # Ensure 'datetime' column is datetime type for operations
+    
     meetings_df['datetime'] = pd.to_datetime(meetings_df['datetime'])
 
     meetings_df['Meeting Time'] = meetings_df['datetime'].dt.strftime('%Y-%m-%d %I:%M %p')
     meetings_df['Status'] = meetings_df['datetime'].apply(lambda x: "Upcoming" if x > datetime.now() else "Past")
-
-    # Display only relevant columns and upcoming meetings by default
-    # Filter for upcoming meetings to show first
+  
     upcoming_df = meetings_df[meetings_df['Status'] == 'Upcoming'].copy()
     past_df = meetings_df[meetings_df['Status'] == 'Past'].copy()
 
@@ -146,13 +131,10 @@ if st.session_state.meetings:
 else:
     st.info("No meetings scheduled yet. Use the form above to schedule one!")
 
-st.markdown("---") # Separator
+st.markdown("---") 
 
-# --- Section: Meeting Agenda & MoM Taker ---
 st.header("📝 Meeting Agenda & MoM Taker")
 if st.session_state.meetings:
-    # Create a list of meeting options for the selectbox
-    # Ensure sorted_meetings is available or re-sort it
     sorted_meetings_for_mom = sorted(st.session_state.meetings, key=lambda x: x['datetime'], reverse=True) # Show recent first
 
     meeting_options = [
@@ -162,11 +144,8 @@ if st.session_state.meetings:
     if meeting_options:
         selected_meeting_display = st.selectbox("Select Meeting to Manage", meeting_options, key="mom_select")
 
-        # Find the selected meeting object
-        # Extract ID more robustly, handling cases where ID might not be at the very end
         selected_meeting_id = None
         try:
-            # This regex-like split handles " (ID: X)"
             if "(ID: " in selected_meeting_display:
                 selected_meeting_id_str = selected_meeting_display.split("(ID: ")[1].split(")")[0]
                 selected_meeting_id = int(selected_meeting_id_str)
@@ -203,47 +182,46 @@ if st.session_state.meetings:
                 with col_save:
                     save_button = st.form_submit_button("Save Agenda and MoM")
                 with col_delete:
-                    # Added a unique key for the delete button
+                    
                     delete_button = st.form_submit_button("Delete Meeting", help="Permanently delete this meeting.", type="secondary", key="delete_meeting_btn")
 
                 if save_button:
-                    # Update the selected meeting in session state
+                    
                     for i, m in enumerate(st.session_state.meetings):
                         if m['id'] == current_meeting['id']:
                             st.session_state.meetings[i]['agenda'] = updated_agenda
                             st.session_state.meetings[i]['mom'] = updated_mom
                             break
                     st.success("Agenda and MoM saved successfully!")
-                    st.rerun() # Rerun to refresh display
+                    st.rerun() 
                 elif delete_button:
-                    # Remove the meeting from session state
+                    
                     st.session_state.meetings = [m for m in st.session_state.meetings if m['id'] != current_meeting['id']]
                     st.warning(f"Meeting with {current_meeting['employee']} deleted.")
-                    st.rerun() # Rerun to update the list
+                    st.rerun() 
         else:
-            if selected_meeting_id is not None: # Only show error if ID was correctly parsed but meeting not found
+            if selected_meeting_id is not None:
                 st.error("Selected meeting not found in the current list.")
     else:
         st.info("No meetings available to manage. Schedule one first.")
 else:
     st.info("Schedule a meeting first to manage its agenda and MoM.")
 
-st.markdown("---") # Separator
+st.markdown("---") 
 
-# --- Section: Individual Employee Calendar View ---
+
 st.header("📅 Individual Employee Calendar")
-if employee_names: # Ensure there are employees to select
+if employee_names:
     selected_employee_calendar = st.selectbox("Select Employee to View Calendar", employee_names, key="calendar_employee")
 
     if st.session_state.meetings:
         employee_meetings = [m for m in st.session_state.meetings if m['employee'] == selected_employee_calendar]
         if employee_meetings:
             employee_meetings_df = pd.DataFrame(employee_meetings)
-            employee_meetings_df['datetime'] = pd.to_datetime(employee_meetings_df['datetime']) # Ensure datetime type
+            employee_meetings_df['datetime'] = pd.to_datetime(employee_meetings_df['datetime']) 
             employee_meetings_df['Meeting Time'] = employee_meetings_df['datetime'].dt.strftime('%Y-%m-%d %I:%M %p')
             employee_meetings_df['Status'] = employee_meetings_df['datetime'].apply(lambda x: "Upcoming" if x > datetime.now() else "Past")
 
-            # Display only relevant columns for the calendar view
             st.dataframe(employee_meetings_df[['Meeting Time', 'purpose', 'agenda', 'mom', 'Status']], hide_index=True,
                          column_config={
                              "purpose": "Purpose",
