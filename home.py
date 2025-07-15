@@ -1,21 +1,16 @@
-# your_project_folder/Home.py
 import streamlit as st
-# os module is no longer strictly needed if no file paths are being joined/checked,
-# but it doesn't hurt to keep it if you anticipate using it elsewhere.
-# For this specific request, it can be removed.
-# import os
 
 st.set_page_config(
     page_title="PMU Management Suite",
     page_icon="🏢",
-    layout="wide" # Keeps the layout wide as you already had it
+    layout="wide" 
 )
 
-# --- Header Section ---
-st.title("🏢 Welcome to the PMU Management Suite!")
-st.markdown("---") # A visual separator
 
-# --- Introduction Section ---
+st.title("🏢 Welcome to the PMU Management Suite!")
+st.markdown("---") 
+
+
 st.write("""
 This application is designed to help the Project Management Unit (PMU) streamline various operations,
 from task tracking to employee management and attendance.
@@ -23,10 +18,10 @@ from task tracking to employee management and attendance.
 
 st.info("💡 **Tip:** Navigate using the sidebar to explore different sections!")
 
-# --- Modules Overview Section (More Visual) ---
+
 st.header("Explore Our Modules:")
 
-col1, col2, col3 = st.columns(3) # Create three columns for module cards
+col1, col2, col3 = st.columns(3) 
 
 with col1:
     st.subheader("📊 Task Tracker")
@@ -43,7 +38,7 @@ with col3:
     st.write("See detailed, card-like views of each employee.")
     st.markdown("<p style='font-size: smaller; color: gray;'>Individual profiles for focused insights.</p>", unsafe_allow_html=True)
 
-# New row of columns for the remaining modules
+
 col4, col5, col6 = st.columns(3)
 
 with col4:
@@ -51,31 +46,14 @@ with col4:
     st.write("Get an overview of current and ongoing projects/programs.")
     st.markdown("<p style='font-size: smaller; color: gray;'>Track progress and key metrics at a glance.</p>", unsafe_allow_html=True)
 
-    # --- Figma Image Display Section REMOVED ---
-    # This section was here:
-    # st.markdown("##### Wireframe Preview:")
-    # try:
-    #     image_path = os.path.join("assets", "programs_dashboard_wireframe.png")
-    #     st.image(image_path, caption="Programs Dashboard Wireframe (Design Preview)", use_container_width=True)
-    #     st.caption("This is a design mockup from Figma. Actual implementation may vary.")
-    # except FileNotFoundError:
-    #     st.error(f"Error: Wireframe image '{image_path}' not found. Please ensure it's in the 'assets' folder relative to Home.py.")
-    #     st.info("If you're on Streamlit Cloud, double-check your GitHub repository structure.")
-    # --- End of REMOVED Section ---
-
-    # --- Retaining the Link to a Live Figma Resource ---
-    st.markdown("---") # Separator
+   
+    st.markdown("---") 
     st.markdown("### View Design Resources:")
     st.markdown("""
     Want to explore interactive design kits that inspire some of our layouts?
     Check out the **[Bloo Lo-Fi Wireframe Kit on Figma Community](https://www.figma.com/community/file/1119385966966606048/Bloo-Lo-Fi-Wireframe-Kit--Community-)**
     """)
-    # You can change the URL to your specific Figma prototype's share link if you have one.
-    # To get the share link for your own Figma prototype:
-    # 1. Open your Figma file.
-    # 2. Click the "Present" (play) icon to open the prototype.
-    # 3. Click the "Share Prototype" icon (usually top right).
-    # 4. Copy the link provided.
+
 
 with col5:
     st.subheader("✍️ Attendance Marker")
@@ -88,15 +66,15 @@ with col6:
     st.markdown("<p style='font-size: smaller; color: gray;'>Connecting with other essential tools.</p>", unsafe_allow_html=True)
 
 
-st.markdown("---") # Another visual separator
+st.markdown("---")
 
-# --- Next Steps / Roadmap Section ---
+
 st.header("Future Roadmap:")
 st.markdown("""
 Our journey to a fully-featured PMU Management Suite continues. Here's what's next:
 """)
 
-# Using columns for "Phase" highlights
+
 phase_col1, phase_col2, phase_col3 = st.columns(3)
 
 with phase_col1:
@@ -123,7 +101,6 @@ with phase_col3:
 
 st.markdown("---")
 
-# --- Footer ---
 st.markdown("""
 <style>
 .footer {
