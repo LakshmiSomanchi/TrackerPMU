@@ -5,16 +5,16 @@ from io import StringIO  # Needed for fallback data
 from typing import Tuple, Dict, List
 
 # --- Configuration ---
-PROCESSED_DATA_DIR = "processed_data"  # This directory must be in THIS repository
-LTD_CSV_PATH = "https://docs.google.com/spreadsheets/d/1cVQ1HZNIQO2baLlDl3uDs0Xu3CLZkRDy/edit?usp=drive_link&ouid=111836593698629007864&rtpof=true&sd=true"  # Replace with your actual path
+# Excel File Configuration
+EXCEL_FILE_PATH = "path/to/your/LTD_9Litres_per_day.xlsx"  # Replace with your actual path
 
-# Identifiers for splitting the data (Adjust these based on your CSV structure)
+# Identifiers for splitting the data (Adjust these based on your Excel structure)
 FARMER_IDENTIFIER = "Farmer"  # Example:  If Farmer data has a column with "Farmer" in it
 BMC_IDENTIFIER = "BMC"  # Example: If BMC data has a column with "BMC" in it
 FIELD_TEAM_IDENTIFIER = "FieldTeam"  # Example: If Field Team data has a column with "FieldTeam" in it
 TRAINING_IDENTIFIER = "Training" # Example: If Training data has a column with "Training" in it
 
-# Fallback Dummy Data (Only used if CSV is not found)
+# Fallback Dummy Data (Only used if Excel file is not found)
 FALLBACK_FARMERS_CSV = """
 Farmer_ID,Farmer_Name,Village,District,BMC_ID,Milk_Production_Liters_Daily,Cattle_Count,Women_Empowerment_Flag,Animal_Welfare_Score
 F001,Rajesh Kumar,Nandgaon,Pune,BMC001,15,5,No,4
@@ -60,28 +60,27 @@ st.set_page_config(layout="wide")
 @st.cache_data(show_spinner="Loading Ksheersagar data...")
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Attempts to load data from a single CSV file and split it into DataFrames, then falls back to embedded dummy CSV data.
+    Attempts to load data from an Excel file and split it into DataFrames, then falls back to embedded dummy CSV data.
     """
 
-    # 1. Try loading and splitting from the single CSV file
+    # 1. Try loading and splitting from the Excel file
     try:
-        all_data_df = pd.read_csv(LTD_CSV_PATH)
+        all_data_df = pd.read_excel(EXCEL_FILE_PATH)
 
         # --- Split the DataFrame based on identifiers ---
         farmer_df = all_data_df[all_data_df.apply(lambda row: any(str(FARMER_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
         bmc_df = all_data_df[all_data_df.apply(lambda row: any(str(BMC_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
         field_team_df = all_data_df[all_data_df.apply(lambda row: any(str(FIELD_TEAM_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        # Split the DataFrame based on identifiers
         training_df = all_data_df[all_data_df.apply(lambda row: any(str(TRAINING_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
         summary_df = all_data_df[all_data_df.apply(lambda row: any(str(TRAINING_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
 
-        st.success("Data loaded and split from the single CSV file!")
+        st.success("Data loaded and split from the Excel file!")
         return farmer_df, bmc_df, field_team_df, training_df, summary_df
 
     except FileNotFoundError:
-        st.warning("Single CSV file not found. Falling back to dummy data.")
+        st.warning("Excel file not found. Falling back to dummy data.")
     except Exception as e:
-        st.error(f"Error loading/splitting data from the single CSV file: {e}. Falling back to dummy data.")
+        st.error(f"Error loading/splitting data from the Excel file: {e}. Falling back to dummy data.")
 
     # 2. Fallback: Load from embedded CSV strings
     try:
