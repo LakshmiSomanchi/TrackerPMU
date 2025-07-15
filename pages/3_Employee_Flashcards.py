@@ -6,7 +6,6 @@ st.set_page_config(layout="wide", page_title="Employee Flashcards")
 st.title("Employee Flashcards")
 st.markdown("---")
 
-# Re-defining employee data here for now. Will be centralized in Phase 3.
 employee_full_details = {
     "Rupesh Mukherjee": {"Title": "Associate Practice Leader", "Department": "PMU", "Reporting To": "N/A", "Email": "rmukherjee@tns.org", "Phone": "91-9876543210", "Status": "Employee"},
     "Shifali Sharma": {"Title": "Project Manager", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "shifalis@tns.org", "Phone": "91-89221943", "Status": "Employee"},
@@ -37,7 +36,6 @@ employee_full_details = {
     "Dr. Ramakrishna": {"Title": "Consultant", "Department": "PMU", "Reporting To": "Rupesh Mukherjee", "Email": "ramakrishna@example.com", "Phone": "(555) 555-5555", "Status": "Contractor"},
 }
 
-# Number of columns for flashcards (e.g., 3 cards per row)
 num_columns = 3
 cols = st.columns(num_columns)
 col_idx = 0
@@ -45,15 +43,15 @@ col_idx = 0
 for name, details in employee_full_details.items():
     with cols[col_idx]:
         st.markdown(f"### {name}")
-        # Placeholder for headshot. In a real app, you'd load images from a path.
-        st.image("https://via.placeholder.com/100", caption="Headshot", width=100) # Generic placeholder image
+        
+        st.image("https://via.placeholder.com/100", caption="Headshot", width=100) 
         st.write(f"**Title:** {details.get('Title', 'N/A')}")
         st.write(f"**Department:** {details.get('Department', 'N/A')}")
         st.write(f"**Status:** {details.get('Status', 'N/A')}")
         st.write(f"**Reporting To:** {details.get('Reporting To', 'N/A')}")
         st.write(f"**Email:** {details.get('Email', 'N/A')}")
         st.write(f"**Phone:** {details.get('Phone', 'N/A')}")
-        st.markdown("---") # Separator between cards
+        st.markdown("---") 
     col_idx = (col_idx + 1) % num_columns
 
 st.markdown("---")
