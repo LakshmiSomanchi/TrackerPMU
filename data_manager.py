@@ -41,7 +41,7 @@ def get_initial_employee_data():
 def get_initial_tasks_data():
     """Loads and caches the initial task data."""
     tasks_data = {
-        # Employees from the provided images, ensuring all exist
+        
         "Rupesh Mukherjee": [],
         "Shifali Sharma": [],
         "Kuntal Dutta": [],
@@ -67,12 +67,12 @@ def get_initial_tasks_data():
         "Subhrat Ghoshal": [],
         "Hrushikesh Tilekar": [],
 
-        # Contractors from the provided images
+       
         "Jhelum Chowdhury": [],
         "Jaweriah Hazrana": [],
         "Dr. Ramakrishna": [],
 
-        # Added some initial tasks for demonstration, feel free to remove or modify
+        
         "Rupesh Mukherjee": [
             {"id": 1, "name": "Finalize Project Alpha Scope", "description": "Meet with stakeholders to define final project scope.", "status": "To Do", "due_date": date(2025, 7, 10)},
             {"id": 2, "name": "Q3 Planning Review", "description": "Review Q3 plans with department heads.", "status": "In Progress", "due_date": date(2025, 7, 15)},
@@ -86,7 +86,7 @@ def get_initial_tasks_data():
         ]
     }
 
-    # Ensure all listed employees have an entry, even if empty
+    
     all_employees = sorted(list(get_initial_employee_data().keys()))
     for emp_name in all_employees:
         if emp_name not in tasks_data:
@@ -97,7 +97,7 @@ def get_initial_tasks_data():
 @st.cache_data(ttl=3600) # Cache attendance data for 1 hour
 def get_initial_attendance_data():
     """Loads and caches initial attendance data."""
-    return {} # Start with an empty dictionary for attendance
+    return {}
 
 def get_next_task_id(current_tasks_data):
     """Calculates the next available task ID."""
