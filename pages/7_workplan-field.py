@@ -1,909 +1,182 @@
-import streamlit as st
 import pandas as pd
-import os
-from io import StringIO
-from typing import Tuple, Dict, List
-import datetime
+import numpy as np
+import streamlit as st
+import plotly.express as px
+from datetime import datetime, timedelta
 
-# --- Constants and Fallback Data ---
-# Ensure these file paths are correct relative to your script's location
+# --- Constants (ensure these paths are correct for your main Excel file)
 EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"
-GOVIND_FILE_PATH = "GovindCompiledReport_June.xlsx" # New Constant
-SDDPL_FILE_PATH = "SDDPLCompiledReport_June.xlsx"   # New Constant
+# Removed GOVIND_FILE_PATH and SDDPL_FILE_PATH as they will be hardcoded
 
+# Identifiers for sheet and column detection (keep these as they are used for the main file)
 FARMER_IDENTIFIER = "Farmer"
 BMC_IDENTIFIER = "BMC"
 FIELD_TEAM_IDENTIFIER = "FieldTeam"
 TRAINING_IDENTIFIER = "Training"
 
-FALLBACK_FARMERS_CSV = """
-Farmer_ID,Farmer_Name,Village,District,BMC_ID,Milk_Production_Liters_Daily,Cattle_Count,Women_Empowerment_Flag,Animal_Welfare_Score
-F001,Rajesh Kumar,Nandgaon,Pune,BMC001,15,5,No,4
-F002,Priya Sharma,Lonikand,Pune,BMC002,22,8,Yes,5
-F003,Amit Singh,Shirur,Pune,BMC001,18,6,No,3
-"""
-FALLBACK_BMCS_CSV = """
-BMC_ID,BMC_Name,District,Capacity_Liters,Daily_Collection_Liters,Quality_Fat_Percentage,Quality_SNF_Percentage,Quality_Adulteration_Flag,Quality_Target_Fat,Quality_Target_SNF,Utilization_Target_Percentage,Animal_Welfare_Compliance_Score_BMC,Women_Empowerment_Participation_Rate_BMC,Date
-BMC001,Nandgaon BMC,Pune,1000,750,3.5,8.0,No,3.8,8.2,80,4.0,50,2025-07-15
-BMC002,Lonikand BMC,Pune,1200,800,3.2,7.8,Yes,3.8,8.2,80,4.5,70,2025-07-15
-BMC003,Daund BMC,Pune,800,700,3.9,8.1,No,3.8,8.2,80,4.2,60,2025-07-15
-"""
-FALLBACK_FIELD_TEAMS_CSV = """
-Team_ID,Team_Leader,District_Coverage,Max_BMC_Coverage,Training_Type,Training_Date,BMC_ID_Trained,Farmer_ID_Trained,Training_Outcome_Score
-FT001,Ravi Kumar,Pune,5,Quality Improvement,2025-06-01,BMC001,,85
-"""
+# --- Hardcoded Govind Data ---
+# Convert your provided data into a dictionary format
+govind_data = {
+    'Sr. No.': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 256, 257, 258, 259, 260, 261, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290, 291, 292, 293, 294, 295, 296, 297, 298, 299],
+    'Date': ['6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/1/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/2/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/3/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/4/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/5/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/6/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025', '6/7/2025'],
+    'BMC Code': [5115, 5115, 5302, 5302, 5844, 5590, 5590, 5590, 5085, 5085, 5268, 5268, 5268, 5404, 8, 8, 5015, 5015, 5015, 5867, 5867, 5090, 5090, 5124, 5124, 5124, 5145, 5145, 5107, 5107, 5107, 5112, 5112, 5118, 5118, 5118, 5450, 5450, 5142, 5142, 5142, 5493, 5493, 5493, 5115, 5302, 5844, 5590, 5590, 5590, 5085, 5085, 5268, 5268, 5268, 5404, 8, 8, 5015, 5015, 5015, 5867, 5090, 5090, 5124, 5124, 5124, 5145, 5145, 5107, 5107, 5107, 5112, 5112, 5118, 5118, 5118, 5450, 5450, 5142, 5142, 5142, 5493, 5493, 5493, 5115, 5115, 5302, 5302, 5844, 5590, 5590, 5590, 5085, 5085, 5268, 5268, 5268, 5404, 8, 8, 5015, 5015, 5015, 5867, 5867, 5090, 5124, 5124, 5124, 5145, 5145, 5107, 5107, 5107, 5107, 5112, 5112, 5118, 5118, 5118, 5450, 5450, 5142, 5142, 5142, 5493, 5493, 5493, 5115, 5302, 5302, 5844, 5590, 5590, 5590, 5085, 5085, 5268, 5268, 5268, 5404, 8, 8, 5015, 5015, 5015, 5867, 5867, 5090, 5090, 5124, 5124, 5124, 5145, 5145, 5107, 5107, 5107, 5107, 5112, 5112, 5118, 5118, 5118, 5450, 5450, 5142, 5142, 5142, 5493, 5493, 5493, 5115, 5302, 5302, 5844, 5590, 5590, 5590, 5085, 5085, 5268, 5268, 5268, 5404, 8, 8, 5015, 5015, 5015, 5867, 5090, 5124, 5124, 5124, 5145, 5145, 5107, 5107, 5107, 5107, 5112, 5112, 5118, 5118, 5118, 5450, 5450, 5142, 5142, 5142, 5493, 5493, 5493, 5115, 5302, 5302, 5844, 5590, 5590, 5590, 5085, 5085, 5268, 5268, 5268, 8, 8, 5867, 5867, 5090, 5450, 5450, 5124, 5124, 5124, 5145, 5145, 5015, 5015, 5015, 5107, 5107, 5107, 5107, 5112, 5112, 5118, 5118, 5118, 5142, 5142, 5142, 5493, 5493, 5493, 5115, 5302, 5844, 5590, 5590, 5590, 5085, 5085, 5268, 5268, 5268, 5404, 8, 8, 5015, 5015, 5015, 5867, 5867, 5090, 5090, 5107, 5107, 5107, 5107, 5112, 5112, 5118, 5118, 5118, 5450, 5450, 5124, 5124, 5124, 5142, 5142, 5142, 5145, 5145, 5493, 5493],
+    'BMC Name': ['HANUMAN DUDH BARAD', 'HANUMAN DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHREE SAMARTHA KRUPA DUDH VADGAON', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'MEGHRAJ DUDH GIRVI', 'MEGHRAJ DUDH GIRVI', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'JAY TULJABHAVANI DUDH GIRVI', 'GOVIND DUDH HOL', 'GOVIND DUDH HOL', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'VADJAI DUDH VADJAL', 'VADJAI DUDH VADJAL', 'JAY MHALLAR DUDH GHADGEMALA', 'JAY MHALLAR DUDH GHADGEMALA', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'GOKUL DUDH MATHACHIWADI', 'GOKUL DUDH MATHACHIWADI', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'BHAIRAVNATH DUDH HINGANGAON', 'BHAIRAVNATH DUDH HINGANGAON', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'GOVIND DUDH SASWAD', 'GOVIND DUDH SASWAD', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'HANUMAN DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHREE SAMARTHA KRUPA DUDH VADGAON', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'MEGHRAJ DUDH GIRVI', 'MEGHRAJ DUDH GIRVI', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'JAY TULJABHAVANI DUDH GIRVI', 'GOVIND DUDH HOL', 'GOVIND DUDH HOL', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'VADJAI DUDH VADJAL', 'JAY MHALLAR DUDH GHADGEMALA', 'JAY MHALLAR DUDH GHADGEMALA', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'GOKUL DUDH MATHACHIWADI', 'GOKUL DUDH MATHACHIWADI', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'BHAIRAVNATH DUDH HINGANGAON', 'BHAIRAVNATH DUDH HINGANGAON', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'GOVIND DUDH SASWAD', 'GOVIND DUDH SASWAD', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'HANUMAN DUDH BARAD', 'HANUMAN DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHREE SAMARTHA KRUPA DUDH VADGAON', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'MEGHRAJ DUDH GIRVI', 'MEGHRAJ DUDH GIRVI', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'JAY TULJABHAVANI DUDH GIRVI', 'GOVIND DUDH HOL', 'GOVIND DUDH HOL', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'VADJAI DUDH VADJAL', 'VADJAI DUDH VADJAL', 'JAY MHALLAR DUDH GHADGEMALA', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'GOKUL DUDH MATHACHIWADI', 'GOKUL DUDH MATHACHIWADI', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'BHAIRAVNATH DUDH HINGANGAON', 'BHAIRAVNATH DUDH HINGANGAON', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'GOVIND DUDH SASWAD', 'GOVIND DUDH SASWAD', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'HANUMAN DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHREE SAMARTHA KRUPA DUDH VADGAON', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'MEGHRAJ DUDH GIRVI', 'MEGHRAJ DUDH GIRVI', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'JAY TULJABHAVANI DUDH GIRVI', 'GOVIND DUDH HOL', 'GOVIND DUDH HOL', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'VADJAI DUDH VADJAL', 'VADJAI DUDH VADJAL', 'JAY MHALLAR DUDH GHADGEMALA', 'JAY MHALLAR DUDH GHADGEMALA', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'GOKUL DUDH MATHACHIWADI', 'GOKUL DUDH MATHACHIWADI', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'BHAIRAVNATH DUDH HINGANGAON', 'BHAIRAVNATH DUDH HINGANGAON', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'GOVIND DUDH SASWAD', 'GOVIND DUDH SASWAD', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'HANUMAN DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHREE SAMARTHA KRUPA DUDH VADGAON', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'MEGHRAJ DUDH GIRVI', 'MEGHRAJ DUDH GIRVI', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'JAY TULJABHAVANI DUDH GIRVI', 'GOVIND DUDH HOL', 'GOVIND DUDH HOL', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'VADJAI DUDH VADJAL', 'JAY MHALLAR DUDH GHADGEMALA', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'GOKUL DUDH MATHACHIWADI', 'GOKUL DUDH MATHACHIWADI', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'BHAIRAVNATH DUDH HINGANGAON', 'BHAIRAVNATH DUDH HINGANGAON', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'GOVIND DUDH SASWAD', 'GOVIND DUDH SASWAD', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'HANUMAN DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHREE SAMARTHA KRUPA DUDH VADGAON', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'MEGHRAJ DUDH GIRVI', 'MEGHRAJ DUDH GIRVI', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'GOVIND DUDH HOL', 'GOVIND DUDH HOL', 'VADJAI DUDH VADJAL', 'VADJAI DUDH VADJAL', 'JAY MHALLAR DUDH GHADGEMALA', 'GOVIND DUDH SASWAD', 'GOVIND DUDH SASWAD', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'GOKUL DUDH MATHACHIWADI', 'GOKUL DUDH MATHACHIWADI', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'BHAIRAVNATH DUDH HINGANGAON', 'BHAIRAVNATH DUDH HINGANGAON', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN', 'HANUMAN DUDH BARAD', 'SHIVSHANKAR DUDH BARAD', 'SHREE SAMARTHA KRUPA DUDH VADGAON', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'DURGADEVI DUDH SONWADI', 'MEGHRAJ DUDH GIRVI', 'MEGHRAJ DUDH GIRVI', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'ADITYA DUDH RAJALE', 'JAY TULJABHAVANI DUDH GIRVI', 'GOVIND DUDH HOL', 'GOVIND DUDH HOL', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'SHREE GANESH DUDH SASTEWADI', 'VADJAI DUDH VADJAL', 'VADJAI DUDH VADJAL', 'JAY MHALLAR DUDH GHADGEMALA', 'JAY MHALLAR DUDH GHADGEMALA', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'WAGHESHWARI DUDH SASWAD', 'BHAIRAVNATH DUDH HINGANGAON', 'BHAIRAVNATH DUDH HINGANGAON', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'VIJAY DUDH ADARKI', 'GOVIND DUDH SASWAD', 'GOVIND DUDH SASWAD', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'SAYALI DUDH MUNJAWADI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'VIGHNAHARTA DUDH VIDNI', 'GOKUL DUDH MATHACHIWADI', 'GOKUL DUDH MATHACHIWADI', 'VAJUBAI DUDH VAJEGOAN', 'VAJUBAI DUDH VAJEGOAN'],
+    'Installed Capacity': [3000, 500, 2000, 500, 2000, 3000, 3000, 500, 5000, 500, 3000, 2000, 500, 2000, 2000, 500, 3000, 3000, 500, 2000, 500, 2000, 500, 3000, 2000, 1000, 5000, 500, 3000, 3000, 3000, 1000, 500, 2000, 1000, 500, 3000, 500, 3000, 3000, 500, 3000, 2000, 500, 3000, 2000, 2000, 3000, 3000, 500, 5000, 500, 3000, 2000, 500, 2000, 2000, 500, 3000, 3000, 500, 2000, 2000, 500, 3000, 2000, 1000, 3000, 500, 3000, 3000, 3000, 1000, 500, 2000, 1000, 500, 3000, 500, 3000, 2000, 500, 3000, 2000, 500, 3000, 500, 2000, 500, 2000, 3000, 3000, 500, 5000, 500, 3000, 2000, 500, 2000, 2000, 500, 3000, 3000, 500, 2000, 500, 2000, 3000, 2000, 1000, 3000, 500, 3000, 3000, 3000, 500, 1000, 500, 2000, 1000, 500, 3000, 500, 3000, 2000, 500, 3000, 2000, 500, 3000, 2000, 500, 2000, 3000, 3000, 500, 5000, 500, 3000, 2000, 500, 2000, 2000, 500, 3000, 3000, 500, 2000, 500, 2000, 500, 3000, 2000, 1000, 3000, 500, 3000, 3000, 3000, 500, 1000, 500, 2000, 1000, 500, 3000, 500, 3000, 2000, 500, 3000, 2000, 500, 3000, 500, 2000, 3000, 3000, 500, 5000, 500, 3000, 2000, 500, 2000, 2000, 500, 3000, 3000, 3000, 500, 1000, 500, 2000, 1000, 500, 3000, 500, 3000, 2000, 500, 3000, 2000, 500, 3000, 2000, 500, 3000, 500, 2000, 3000, 3000, 500, 5000, 500, 3000, 2000, 500, 2000, 2000, 500, 2000, 500, 3000, 2000, 1000, 3000, 500, 3000, 3000, 3000, 500, 1000, 500, 2000, 1000, 500, 3000, 500, 3000, 2000, 500, 3000, 2000, 500, 3000, 500, 2000, 3000, 3000, 500, 5000, 500, 3000, 2000, 500, 2000, 500, 3000, 2000, 1000, 3000, 500, 3000, 3000, 3000, 500, 1000, 500, 2000, 1000, 500, 3000, 500, 3000, 2000, 500, 3000, 2000, 500],
+    'Milk Qty. (LTR)': [1446, 76, 1121, 150, 603, 2398, 3090, 261, 5163, 325, 2729, 464, 507, 925, 2099, 486, 1433, 2787, 328, 969, 122, 1170, 76, 3143, 1684, 876, 3517, 331, 3202, 3009, 2946, 1013, 314, 2029, 820, 304, 2148, 435, 2800, 1884, 301, 2934, 2160, 335, 1438, 1121, 601, 2812, 2827, 342, 5197, 323, 1764, 1582, 337, 921, 2135, 443, 2783, 1254, 437, 1133, 1149, 112, 2827, 1916, 973, 3564, 356, 3126, 3385, 2980, 1017, 321, 1973, 724, 440, 2091, 507, 3055, 1710, 290, 2913, 2102, 329, 1500, 112, 1092, 282, 603, 2744, 2774, 346, 4781, 310, 1710, 1580, 506, 869, 2097, 553, 2650, 1301, 474, 946, 184, 1169, 3012, 1972, 748, 3597, 392, 3238, 3503, 1877, 455, 1010, 243, 2006, 993, 178, 2113, 473, 2911, 1874, 235, 2726, 2151, 321, 1524, 1112, 131, 601, 2835, 2735, 313, 5111, 326, 2806, 600, 335, 925, 2067, 538, 2470, 1436, 526, 1000, 135, 1163, 81, 3080, 1936, 739, 3617, 340, 3193, 2963, 2963, 241, 1003, 231, 1771, 1017, 454, 2028, 588, 2777, 1909, 298, 2849, 2121, 360, 1550, 1186, 95, 580, 2795, 2816, 223, 5246, 338, 1800, 1448, 431, 908, 2035, 515, 2710, 1461, 228, 1114, 1198, 2927, 1985, 816, 3617, 308, 3441, 3566, 1959, 309, 1015, 263, 1781, 1048, 369, 2038, 573, 2814, 1931, 227, 2873, 2150, 311, 1504, 1226, 41, 586, 2690, 2759, 405, 5286, 227, 1768, 1466, 418, 2053, 506, 982, 132, 1179, 2079, 553, 2722, 2083, 853, 3599, 335, 2700, 1247, 362, 3112, 2927, 2960, 258, 986, 389, 2041, 699, 493, 2582, 1976, 218, 2845, 2055, 264, 1563, 1290, 598, 2820, 2757, 295, 4801, 840, 1659, 1675, 405, 1778, 2049, 536, 1427, 2527, 397, 975, 145, 1151, 37, 3263, 2915, 2967, 305, 967, 352, 1769, 828, 435, 2230, 452, 3043, 1758, 867, 2783, 1785, 215, 3557, 391],
+    'Utilization': [48.20, 15.20, 56.05, 30.00, 30.15, 79.93, 103.00, 52.20, 103.26, 65.00, 90.97, 23.20, 101.40, 46.25, 104.95, 97.20, 47.77, 92.90, 65.60, 48.45, 24.40, 58.50, 15.20, 104.77, 84.20, 87.60, 70.34, 66.20, 106.73, 100.30, 98.20, 101.30, 62.80, 101.45, 82.00, 60.80, 71.60, 87.00, 93.33, 62.80, 60.20, 97.80, 108.00, 67.00, 47.93, 56.05, 30.05, 93.73, 94.23, 68.40, 103.94, 64.60, 58.80, 79.10, 67.40, 46.05, 106.75, 88.60, 92.77, 41.80, 87.40, 56.65, 57.45, 22.40, 94.23, 95.80, 97.30, 118.80, 71.20, 104.20, 112.83, 99.33, 101.70, 64.20, 98.65, 72.40, 88.00, 69.70, 101.40, 101.83, 85.50, 58.00, 97.10, 105.10, 65.80, 50.00, 22.40, 54.60, 56.40, 30.15, 91.47, 92.47, 69.20, 95.62, 62.00, 57.00, 79.00, 101.20, 43.45, 104.85, 110.60, 88.33, 43.37, 94.80, 47.30, 36.80, 58.45, 100.40, 98.60, 74.80, 119.90, 78.40, 107.93, 116.77, 62.57, 91.00, 101.00, 48.60, 100.30, 99.30, 35.60, 70.43, 94.60, 97.03, 93.70, 47.00, 90.87, 107.55, 64.20, 50.80, 55.60, 26.20, 30.05, 94.50, 91.17, 62.60, 102.22, 65.20, 93.53, 30.00, 67.00, 46.25, 103.35, 107.60, 82.33, 47.87, 105.20, 50.00, 27.00, 58.15, 16.20, 102.67, 96.80, 73.90, 120.57, 68.00, 106.43, 98.77, 98.77, 48.20, 100.30, 46.20, 88.55, 101.70, 90.80, 67.60, 117.60, 92.57, 95.45, 59.60, 94.97, 106.05, 72.00, 51.67, 59.30, 19.00, 29.00, 93.17, 93.87, 44.60, 104.92, 67.60, 60.00, 72.40, 86.20, 45.40, 101.75, 103.00, 90.33, 48.70, 7.60, 55.70, 59.90, 97.57, 99.25, 81.60, 120.57, 61.60, 114.70, 118.87, 65.30, 61.80, 101.50, 52.60, 89.05, 104.80, 73.80, 67.93, 114.60, 93.80, 96.55, 45.40, 95.77, 107.50, 62.20, 50.13, 61.30, 8.20, 29.30, 89.67, 91.97, 81.00, 105.72, 45.40, 58.93, 73.30, 83.60, 102.65, 101.20, 49.10, 26.40, 58.95, 69.30, 110.60, 90.73, 104.15, 85.30, 119.97, 67.00, 90.00, 41.57, 72.40, 103.73, 97.57, 98.67, 51.60, 98.60, 77.80, 102.05, 69.90, 98.60, 86.07, 98.80, 43.60, 94.83, 102.75, 52.80, 52.10, 64.50, 29.90, 94.00, 91.90, 59.00, 96.02, 168.00, 55.30, 83.75, 81.00, 88.90, 102.45, 107.20, 47.57, 84.23, 79.40, 48.75, 29.00, 57.55, 7.40, 108.77, 97.17, 98.90, 61.00, 96.70, 70.40, 88.45, 82.80, 87.00, 74.33, 90.40, 101.43, 87.90, 86.70, 92.77, 89.25, 43.00, 118.57, 78.20],
+    'FAT': [3.70, 3.70, 3.70, 3.70, 3.50, 3.70, 3.70, 3.70, 3.40, 3.40, 3.70, 3.70, 3.70, 3.70, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.60, 3.70, 3.60, 3.50, 3.50, 3.70, 3.80, 3.80, 3.70, 3.70, 3.50, 3.50, 3.50, 3.80, 3.80, 3.80, 3.80, 3.70, 3.70, 3.70, 3.70, 3.50, 3.70, 3.40, 3.70, 3.70, 3.70, 3.40, 3.40, 3.70, 3.70, 3.70, 3.70, 3.40, 3.60, 3.50, 3.50, 3.60, 3.50, 3.50, 3.60, 3.70, 3.60, 3.60, 3.60, 3.70, 3.80, 3.70, 3.80, 3.70, 3.70, 3.50, 3.50, 3.50, 3.80, 3.80, 3.80, 3.80, 3.80, 3.70, 3.70, 3.70, 3.50, 3.50, 3.60, 3.60, 3.40, 3.70, 3.70, 3.70, 3.50, 3.50, 3.70, 3.60, 3.60, 3.70, 3.50, 3.50, 3.40, 3.50, 3.50, 3.50, 3.50, 3.50, 3.60, 3.60, 3.70, 3.60, 3.70, 3.80, 3.80, 3.80, 3.70, 3.70, 3.70, 3.50, 3.50, 3.50, 3.90, 3.90, 3.80, 3.80, 3.80, 3.80, 3.70, 3.80, 3.80, 3.50, 3.70, 3.70, 3.40, 3.80, 3.70, 3.70, 3.40, 3.40, 3.60, 3.70, 3.70, 3.60, 3.40, 3.40, 3.50, 3.50, 3.50, 3.40, 3.40, 3.50, 3.50, 3.60, 3.60, 3.60, 3.60, 3.70, 3.70, 3.80, 3.80, 3.80, 3.80, 3.70, 3.70, 3.50, 3.50, 3.50, 3.80, 3.80, 3.70, 3.80, 3.80, 3.70, 3.80, 3.80, 3.60, 3.60, 3.60, 3.40, 3.80, 3.70, 3.70, 3.40, 3.40, 3.70, 3.70, 3.70, 3.60, 3.60, 3.70, 3.70, 3.70, 3.70, 3.50, 3.50, 3.40, 3.40, 3.40, 3.50, 3.50, 3.60, 3.60, 3.60, 3.60, 3.70, 3.70, 3.80, 3.80, 3.70, 3.70, 3.70, 3.50, 3.50, 3.50, 3.90, 3.80, 3.70, 3.80, 3.80, 3.70, 3.70, 3.70, 3.50, 3.60, 3.60, 3.50, 3.80, 3.70, 3.70, 3.40, 3.40, 3.70, 3.70, 3.70, 3.70, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.50, 3.60, 3.70, 3.70, 3.60, 3.70, 3.70, 3.60, 3.70, 3.70, 3.70, 3.50, 3.50, 3.50, 3.80, 3.80, 3.70, 3.80, 3.80, 3.80, 3.80, 3.80, 3.70, 3.70, 3.70, 3.60, 3.50, 3.50, 3.70, 3.70, 3.70, 3.70, 3.40, 3.40, 3.70, 3.70, 3.70, 3.50, 3.50, 3.50, 3.40, 3.50, 3.50, 3.50, 3.50, 3.60, 3.60, 3.60, 3.70, 3.70, 3.70, 3.80, 3.80, 3.80, 3.70, 3.70, 3.70, 3.50, 3.50, 3.50, 3.80, 3.80, 3.70, 3.80, 3.80, 3.80, 3.80, 3.80, 3.60, 3.70],
+    'CLR': [27.5, 27.5, 27.5, 27.5, 28.0, 28.0, 28.0, 28.0, 27.0, 27.0, 27.5, 27.5, 27.5, 27.5, 28.0, 28.0, 27.5, 27.5, 27.5, 29.0, 29.0, 28.0, 28.0, 28.5, 28.0, 29.0, 28.0, 28.0, 29.0, 28.5, 28.5, 28.5, 28.5, 27.5, 27.5, 27.5, 28.0, 28.5, 28.5, 28.5, 29.0, 29.0, 29.0, 29.0, 27.0, 28.0, 27.5, 28.0, 28.0, 27.5, 27.0, 27.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 27.5, 27.5, 28.0, 29.0, 28.0, 28.0, 28.5, 28.0, 28.0, 28.0, 28.5, 28.5, 29.0, 28.5, 28.5, 27.0, 27.0, 27.0, 28.0, 28.0, 28.5, 28.5, 28.5, 29.0, 29.0, 29.0, 27.5, 27.5, 28.5, 28.5, 28.0, 28.0, 28.0, 28.0, 27.5, 27.5, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 27.5, 27.5, 27.5, 29.0, 29.0, 28.0, 28.5, 28.0, 28.5, 28.0, 28.5, 29.0, 28.5, 28.5, 28.5, 28.5, 27.5, 27.5, 27.5, 28.0, 28.0, 28.5, 28.5, 28.5, 29.0, 28.5, 29.0, 27.5, 28.0, 28.0, 28.0, 28.0, 27.0, 28.0, 28.0, 28.0, 27.5, 28.0, 28.0, 28.0, 28.0, 27.0, 27.5, 27.5, 29.0, 29.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.0, 28.5, 28.5, 28.5, 28.5, 27.5, 27.5, 27.5, 28.0, 28.5, 28.5, 28.5, 28.5, 29.0, 29.0, 29.0, 27.0, 28.0, 28.0, 28.0, 27.5, 28.0, 28.0, 27.0, 27.0, 28.0, 28.0, 28.0, 28.0, 27.5, 27.5, 27.5, 29.0, 28.0, 28.0, 28.0, 28.0, 28.5, 28.5, 28.5, 28.5, 28.5, 28.5, 27.5, 27.5, 27.5, 28.0, 28.0, 29.0, 29.0, 28.5, 29.0, 29.0, 29.0, 27.5, 28.0, 28.0, 27.5, 27.5, 27.5, 27.5, 27.5, 28.0, 28.0, 28.0, 28.0, 27.5, 27.5, 29.0, 29.0, 28.0, 28.5, 28.5, 28.0, 28.0, 27.5, 27.5, 27.5, 27.5, 28.5, 28.5, 28.5, 28.5, 28.5, 27.5, 27.5, 27.5, 28.5, 28.5, 28.5, 28.5, 28.5, 29.0, 29.0, 29.0, 27.0, 28.0, 29.9, 28.0, 28.0, 28.0, 27.5, 27.5, 28.0, 28.0, 29.0, 27.5, 28.0, 28.0, 27.5, 27.5, 27.5, 28.5, 28.0, 28.0, 28.0, 28.0, 28.5, 28.5, 28.5, 28.5, 28.5, 28.5, 27.5, 27.5, 27.5, 28.5, 28.5, 28.5, 28.5, 28.5, 29.0, 29.0],
+    'SNF': [8.01, 8.01, 8.01, 8.01, 8.10, 8.14, 8.14, 8.14, 7.82, 7.82, 8.01, 8.01, 8.01, 8.01, 8.10, 8.10, 7.97, 7.97, 7.97, 8.35, 8.35, 8.10, 8.10, 8.24, 8.14, 8.37, 8.10, 8.10, 8.39, 8.28, 8.28, 8.26, 8.26, 7.97, 7.97, 7.97, 8.16, 8.28, 8.28, 8.28, 8.39, 8.39, 8.39, 8.39, 7.85, 8.14, 7.95, 8.14, 8.14, 8.01, 7.82, 7.82, 8.14, 8.14, 8.14, 8.14, 8.07, 8.12, 7.97, 7.97, 8.12, 8.35, 8.10, 8.12, 8.26, 8.12, 8.12, 8.12, 8.26, 8.28, 8.39, 8.28, 8.26, 8.26, 7.85, 7.85, 7.85, 8.16, 8.16, 8.28, 8.28, 8.28, 8.39, 8.39, 8.39, 7.97, 7.97, 8.24, 8.24, 8.07, 8.14, 8.14, 8.14, 7.97, 7.97, 8.14, 8.12, 8.12, 8.14, 8.10, 8.10, 7.95, 7.97, 7.97, 8.35, 8.35, 8.10, 8.24, 8.12, 8.26, 8.12, 8.26, 8.39, 8.28, 8.28, 8.28, 8.26, 8.26, 7.97, 7.97, 7.97, 8.18, 8.18, 8.28, 8.28, 8.28, 8.41, 8.26, 8.41, 7.97, 8.14, 8.14, 8.07, 8.16, 8.14, 8.14, 7.82, 7.82, 8.12, 8.26, 8.14, 7.99, 8.07, 8.12, 7.95, 7.95, 7.97, 8.22, 8.22, 8.07, 8.07, 8.12, 8.12, 8.12, 8.12, 8.26, 8.28, 8.28, 8.28, 8.26, 8.26, 7.97, 7.97, 7.97, 8.16, 8.28, 8.26, 8.28, 8.28, 8.39, 8.41, 8.41, 7.87, 8.12, 8.12, 8.07, 8.03, 8.14, 8.14, 7.82, 7.82, 8.14, 8.14, 8.14, 8.12, 7.97, 7.95, 7.95, 7.95, 8.35, 8.10, 8.12, 8.12, 8.12, 8.12, 8.26, 8.28, 8.28, 8.14, 8.28, 8.26, 7.97, 7.97, 7.97, 8.18, 8.16, 8.39, 8.41, 8.28, 8.39, 8.39, 8.39, 7.97, 8.12, 8.12, 7.97, 8.16, 8.14, 8.14, 7.95, 7.95, 8.14, 8.14, 8.14, 8.14, 8.10, 8.10, 8.35, 8.35, 8.10, 8.28, 8.28, 8.10, 8.24, 8.12, 8.12, 8.26, 7.97, 7.95, 8.28, 8.26, 8.26, 8.26, 8.26, 7.97, 7.97, 7.97, 8.28, 8.26, 8.28, 8.41, 8.41, 8.41, 7.87, 8.10, 8.10, 8.14, 8.14, 8.14, 7.95, 7.95, 8.12, 8.14, 8.37, 7.99, 8.10, 8.10, 7.82, 7.82, 7.82, 8.22, 8.10, 8.10, 8.10, 8.28, 8.28, 8.28, 8.28, 8.26, 8.26, 7.85, 7.82, 7.82, 8.28, 8.28, 8.12, 8.24, 8.24, 8.28, 8.28, 8.28, 8.24, 8.26],
+    'Antibiotic Negative Qty.': [0, 0, 0, 150, 603, 0, 3090, 261, 5163, 0, 2729, 464, 507, 925, 2099, 0, 1433, 2787, 328, 969, 122, 1170, 76, 3143, 1684, 876, 3517, 0, 3202, 3009, 2946, 1013, 314, 2029, 820, 304, 2148, 435, 2800, 1884, 0, 2934, 2160, 335, 1438, 1121, 601, 0, 0, 342, 5197, 323, 1764, 1582, 337, 921, 2135, 0, 2783, 1254, 0, 1133, 1149, 112, 2827, 1916, 973, 3564, 0, 3126, 3385, 0, 1017, 321, 1973, 724, 440, 2091, 0, 3055, 1710, 0, 2913, 2102, 329, 1500, 112, 1092, 0, 603, 2744, 2774, 346, 4781, 310, 1710, 1580, 506, 869, 2097, 553, 2650, 1301, 0, 946, 184, 1169, 3012, 1972, 748, 3597, 0, 3238, 3503, 0, 455, 1010, 243, 2006, 993, 0, 2113, 473, 2911, 1874, 235, 2726, 2151, 321, 0, 1112, 131, 601, 0, 2735, 0, 5111, 326, 2806, 600, 335, 925, 2067, 538, 2470, 1436, 0, 1000, 135, 1163, 81, 3080, 1936, 739, 3617, 0, 3193, 2963, 2963, 0, 1003, 231, 1771, 1017, 454, 2028, 0, 2777, 1909, 0, 2849, 2121, 360, 1550, 0, 95, 580, 2795, 2816, 223, 5246, 338, 1800, 1448, 431, 908, 2035, 515, 2710, 1461, 228, 1114, 1198, 2927, 1985, 816, 3617, 0, 3441, 3566, 0, 309, 1015, 263, 1781, 1048, 369, 2038, 0, 2814, 1931, 0, 2873, 2150, 311, 1504, 0, 0, 586, 2690, 2759, 0, 5286, 227, 1768, 1466, 418, 2053, 506, 982, 132, 0, 0, 0, 2722, 2083, 853, 3599, 0, 2700, 1247, 0, 3112, 2927, 2960, 0, 986, 389, 2041, 699, 493, 2582, 1976, 218, 2845, 0, 0, 1563, 1290, 598, 2820, 2757, 0, 4801, 840, 1659, 1675, 405, 1778, 2049, 536, 1427, 2527, 0, 975, 145, 0, 37, 3263, 2915, 2967, 0, 967, 352, 1769, 0, 0, 2230, 452, 3043, 1758, 867, 2783, 1785, 0, 3557, 0],
+    'Antibiotic Positive Qty': [1446, 76, 1121, 0, 0, 2398, 0, 0, 0, 325, 0, 0, 0, 0, 0, 486, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 331, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 301, 0, 0, 0, 0, 0, 0, 2812, 2827, 0, 0, 0, 0, 0, 0, 0, 0, 443, 0, 0, 437, 0, 0, 0, 0, 0, 0, 0, 356, 0, 0, 2980, 0, 0, 0, 0, 0, 0, 507, 0, 0, 290, 0, 0, 0, 0, 0, 282, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 474, 0, 0, 0, 0, 0, 0, 392, 0, 0, 1877, 0, 0, 0, 0, 178, 0, 0, 0, 0, 0, 0, 0, 0, 1524, 0, 0, 0, 2835, 0, 313, 0, 0, 0, 0, 0, 0, 0, 0, 526, 0, 0, 0, 0, 0, 0, 340, 0, 0, 0, 241, 0, 0, 0, 0, 0, 0, 588, 0, 0, 298, 0, 0, 0, 0, 1186, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 308, 0, 0, 1959, 0, 0, 0, 0, 0, 0, 573, 0, 0, 227, 0, 0, 0, 0, 1226, 41, 0, 0, 0, 405, 0, 0, 0, 0, 2079, 553, 0, 0, 0, 0, 335, 0, 0, 362, 0, 0, 0, 258, 0, 0, 0, 0, 0, 0, 0, 0, 2055, 264, 0, 0, 0, 0, 0, 295, 0, 0, 0, 0, 0, 0, 0, 0, 397, 0, 0, 1151, 0, 0, 0, 305, 0, 0, 828, 435, 0, 0, 0, 0, 0, 215, 0, 0],
+    'Sulpha': ['Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg'],
+    'Beta': ['Pos', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Pos', 'Neg', 'Neg'],
+    'Tetra': ['Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Neg', 'Regresar a la página inicial del Asignador de tareas
 
-FALLBACK_TRAINING_DATA = """
-Training_Topic,Aug'23,Sep'23,Oct'23,Nov'23,Dec'23,Jan'24,Feb'24,Mar'24,Apr'24,May'24,Jun'24,Jul'24,Aug'24,Sep'24,Oct'24,Nov'24,Dec'24,Sum_Till_Date
-Farmer's Training on AW (25 mins),92,31,15,19,11,17,17,6,17,17,21,28,20,15,20,17,17,380
-Women Farmer's Training on Dairy Business (25 mins),73,32,30,16,16,41,42,14,43,43,66,58,56,42,42,63,93,770
-Farmer's Training on Breeding and Nutrition (25 mins),83,31,15,40,43,71,46,18,48,54,82,81,94,54,63,70,70,963
-Farmer's Training on Clean Milk Prod. (25 mins),107,67,41,65,52,66,42,18,60,71,92,88,91,81,97,76,74,1188
-Farmer's Training on AW (25 mins) (Women),7,22,34,18,28,23,17,6,14,16,28,18,11,18,29,13,28,330
-Women Farmer's Training on Dairy Business (25 mins) (Women),6,20,32,15,28,18,13,5,14,12,22,16,9,15,25,10,23,283
-Farmer's Training on Breeding and Nutrition (25 mins) (Women),6,24,36,18,28,23,17,6,18,16,27,19,12,18,29,13,24,334
-Farmer's Training on CMP (25 mins) (Women),7,24,35,18,28,23,18,6,5,10,28,17,12,19,29,13,28,320
-"""
+**Para la asignador de tareas de IBM Business Automation Workflow (BAW) en un entorno IBM Cloud Pak, la eliminación del 'fallback dummy data' y la visualización de los datos reales del archivo Excel `KSHEERSAGAR LTD File.xlsx` dependen principalmente de la correcta configuración y ejecución de la función `load_data()` y la forma en que los datos se integran en el resto de la aplicación Streamlit.**
 
-SUMMARY_DATA = """
-Training_Topic,Jan'24,Feb'24,Mar'24,Apr'24,May'24,Jun'24,Jul'24,Aug'24,Sep'24,Oct'24,Nov'24,Dec'24,Total_Training,No_of_Farmers
-Farmer's Training on AW (25 mins),40,34,12,31,33,49,46,31,33,49,30,45,433,3464
-Women Farmer's Training on Dairy Business (25 mins),120,101,68,119,123,94,135,122,125,138,112,124,1381,11048
-Farmer's Training on Breeding and Nutrition (25 mins),94,63,24,66,70,109,100,106,72,92,83,94,973,7784
-Farmer's Training on CMP (25 mins),89,60,24,65,81,120,105,103,100,126,89,102,1064,8512
-Total,343,258,128,281,307,372,386,362,330,405,314,365,3851,30808
-"""
+Dado que el `NameError` ya está arreglado, el problema se traslada a la lectura y procesamiento de tu archivo Excel. El mensaje "Falling back to dummy data" es una señal clara de que la función `load_data()` está cayendo en su bloque `except`, lo que significa que no puede cargar los datos reales.
 
-# --- Workplan specific constants and data storage ---
-WORKPLAN_FILE_PATH = "daily_workplans.csv"
+---
 
-# --- UPDATED: Admin Authorized Emails ---
-AUTHORIZED_ADMIN_EMAILS = [
-    "mkaushal@tns.org",
-    "rsomanchi@tns.org",
-    "ksuneha@tns.org",
-    "shifalis@tns.org"
-]
+**Causas comunes por las que `load_data()` falla al leer un Excel en un entorno Streamlit/Cloud Pak (y cómo verificar/arreglar):**
 
-FIELD_TEAM_MEMBERS = [
-    "Dr. Sachin Wadapalliwar",
-    "Bhushan Sananse",
-    "Nilesh Dhanwate",
-    "Subhrat",
-    "Aniket Govenkar",
-]
+1.  **`FileNotFoundError` (El archivo Excel no se encuentra):**
+    * **Lo más probable.** Cuando ejecutas una aplicación Streamlit en un entorno como IBM Cloud Pak, la ruta del archivo que especificas (`EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"`) debe ser la **ruta absoluta o relativa correcta desde donde se ejecuta la aplicación Streamlit dentro del contenedor o pod de Cloud Pak.**
+    * **Verificación:**
+        * **¿Dónde está tu archivo `KSHEERSAGAR LTD File.xlsx` en relación con tu script `7_workplan-field.py`?** Si están en el mismo directorio, entonces `EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"` es correcto *si el script se ejecuta desde ese directorio*.
+        * **¿Estás utilizando un volumen persistente (PVC) o un ConfigMap para montar el archivo Excel en tu pod de Streamlit?** En un entorno de orquestación como Kubernetes (base de Cloud Pak), los archivos no suelen estar "directamente" al lado del script a menos que los montes explícitamente.
+            * Si usas un PVC, la ruta sería algo como `/mnt/data/KSHEERSAGAR LTD File.xlsx` (o la ruta específica donde montes el PVC dentro del contenedor).
+            * Si usas un ConfigMap, el archivo se montaría en una ruta específica dentro del contenedor, por ejemplo, `/etc/config/KSHEERSAGAR LTD File.xlsx`.
+    * **Solución:** **Ajusta `EXCEL_FILE_PATH` a la ruta correcta dentro del contenedor de tu aplicación Streamlit.** Si lo estás probando localmente, asegúrate de que el Excel esté en el mismo directorio que tu script o proporciona una ruta absoluta.
 
-ACTIVITIES = [
-    "Monitoring and evaluation of farms and BMCs",
-    "Training: DEOs, QIs, MPOs, BCF and Lead Farmers",
-    "Assessment: KS 1.0 Endline and KS 2.0 Baseline",
-    "Governance: Weekly/Monthly",
-]
+2.  **Permisos de archivo:**
+    * Incluso si el archivo está en la ruta correcta, el usuario bajo el cual se ejecuta la aplicación Streamlit dentro del contenedor podría no tener permisos de lectura.
+    * **Verificación:** Revisa la configuración de seguridad de tu pod y contenedor en Cloud Pak. Asegúrate de que el usuario tenga permisos de lectura para el directorio y el archivo.
+    * **Solución:** Ajusta los permisos del volumen/directorio o la configuración de `securityContext` de tu pod si es necesario.
 
-st.set_page_config(layout="wide")
-
-
-# --- New Data Loading Functions for Govind and SDDPL ---
-
-@st.cache_data(show_spinner="Loading Govind BMC data...")
-def load_govind_bmc_data() -> pd.DataFrame:
-    """Loads and processes Govind BMC data."""
-    try:
-        govind_df = pd.read_excel(GOVIND_FILE_PATH)
-        # Rename columns to a standardized format (or create new ones)
-        govind_df.rename(columns={
-            'BMC Code': 'BMC_ID',
-            'MCC Name': 'BMC_Name',
-            'Milk Qty. (LTR)': 'Daily_Collection_Liters',
-            'Utilization': 'Utilization_Percentage_Calculated', # This is already a percentage in Govind
-            'FAT': 'Quality_Fat_Percentage',
-            'CLR': 'Quality_CLR_Percentage', # New column
-            'SNF': 'Quality_SNF_Percentage',
-            'Antibiotic Positive Qty': 'Quality_AB_Positive', # Assuming a measure of positive tests
-            'Sulpha': 'Quality_Sulpha',
-            'Beta': 'Quality_Beta', # Assuming Beta is MBRP in this context based on typical dairy tests
-            'Capa': 'Quality_Capa',
-            'Afla': 'Quality_Aflatoxins',
-            'Date': 'Date'
-        }, inplace=True)
-        
-        # Add 'District' column if available or set a default/placeholder
-        if 'District' not in govind_df.columns:
-            govind_df['District'] = 'Unknown' # Placeholder, adjust if district can be derived
-        
-        # Add a source column
-        govind_df['Source'] = 'Govind'
-
-        # Convert relevant columns to numeric, coercing errors to NaN
-        numeric_cols = ['Daily_Collection_Liters', 'Utilization_Percentage_Calculated', 
-                        'Quality_Fat_Percentage', 'Quality_CLR_Percentage', 'Quality_SNF_Percentage',
-                        'Quality_AB_Positive', 'Quality_Sulpha', 'Quality_Beta', 
-                        'Quality_Capa', 'Quality_Aflatoxins']
-        for col in numeric_cols:
-            if col in govind_df.columns: # Added check for column existence
-                govind_df[col] = pd.to_numeric(govind_df[col], errors='coerce')
-            
-        # Convert date column
-        if 'Date' in govind_df.columns: # Added check for column existence
-            govind_df['Date'] = pd.to_datetime(govind_df['Date'], errors='coerce')
-        
-        # Ensure BMC_ID is string
-        if 'BMC_ID' in govind_df.columns: # Added check for column existence
-            govind_df['BMC_ID'] = govind_df['BMC_ID'].astype(str)
-
-        st.success("Govind BMC data loaded!")
-        return govind_df
-    except FileNotFoundError:
-        st.warning(f"Govind BMC file not found: {GOVIND_FILE_PATH}")
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error loading Govind BMC data: {e}")
-        return pd.DataFrame()
-
-@st.cache_data(show_spinner="Loading SDDPL BMC data...")
-def load_sddpl_bmc_data() -> pd.DataFrame:
-    """Loads and processes SDDPL BMC data."""
-    try:
-        sddpl_df = pd.read_excel(SDDPL_FILE_PATH)
-        # Rename columns to a standardized format
-        sddpl_df.rename(columns={
-            'BMC': 'BMC_ID',
-            'Area': 'District', # Assuming Area maps to District
-            'Total Milk': 'Daily_Collection_Liters',
-            'Alcohol Positive': 'Quality_Alcohol_Positive',
-            'AB Positive Milk': 'Quality_AB_Positive',
-            'AFM1 Positive': 'Quality_Aflatoxins', # Assuming AFM1 refers to Aflatoxins
-            '4IN1 STRIP': 'Quality_MBRP', # Assuming 4IN1 STRIP refers to MBRP
-            'Date': 'Date'
-        }, inplace=True)
-
-        # Add placeholder columns if they don't exist in SDDPL but are needed for common BMC DF
-        # Initialize with pd.NA and then fill as appropriate
-        common_cols = ['BMC_Name', 'Capacity_Liters', 'Utilization_Percentage_Calculated', # Keep this here to ensure it's a possible column for the combined DF
-                        'Quality_Fat_Percentage', 'Quality_SNF_Percentage', 'Quality_Adulteration_Flag',
-                        'Quality_CLR_Percentage', 'Quality_Sulpha', 'Quality_Beta', 'Quality_Capa']
-        for col in common_cols:
-            if col not in sddpl_df.columns:
-                sddpl_df[col] = pd.NA # Use pd.NA for missing values
-
-        # Fill specific SDDPL quality metrics if they are available
-        if 'BTS & CAP Negative Milk' in sddpl_df.columns:
-            # You might derive a positive/negative flag from this. Assuming if >0, it's 'No' adulteration.
-            # Otherwise, consider 'Yes' if the value is 0 or NaN, indicating an issue.
-            sddpl_df['Quality_Adulteration_Flag'] = sddpl_df['BTS & CAP Negative Milk'].apply(lambda x: 'No' if pd.notna(x) and x > 0 else 'Yes')
-        
-        # Add a source column
-        sddpl_df['Source'] = 'SDDPL'
-
-        # Convert relevant columns to numeric, coercing errors to NaN
-        numeric_cols = ['Daily_Collection_Liters', 'Quality_Alcohol_Positive', 
-                        'Quality_AB_Positive', 'Quality_Aflatoxins', 'Quality_MBRP']
-        for col in numeric_cols:
-            if col in sddpl_df.columns: # Added check for column existence
-                sddpl_df[col] = pd.to_numeric(sddpl_df[col], errors='coerce')
-        
-        # Convert date column
-        if 'Date' in sddpl_df.columns: # Added check for column existence
-            sddpl_df['Date'] = pd.to_datetime(sddpl_df['Date'], errors='coerce')
-        
-        # Ensure BMC_ID is string
-        if 'BMC_ID' in sddpl_df.columns: # Added check for column existence
-            sddpl_df['BMC_ID'] = sddpl_df['BMC_ID'].astype(str)
-
-
-        st.success("SDDPL BMC data loaded!")
-        return sddpl_df
-    except FileNotFoundError:
-        st.warning(f"SDDPL BMC file not found: {SDDPL_FILE_PATH}")
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error loading SDDPL BMC data: {e}")
-        return pd.DataFrame()
-
-
-# --- Existing Data Loading Function (MODIFIED) ---
-@st.cache_data(show_spinner="Loading Ksheersagar data...")
-def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """
-    Attempts to load data from Excel files and combine BMC data,
-    then falls back to embedded dummy CSV data.
-    """
-    farmer_df = pd.DataFrame()
-    bmc_df = pd.DataFrame()
-    field_team_df = pd.DataFrame()
-    training_df = pd.DataFrame()
-    summary_df = pd.DataFrame()
-
-    try:
-        # Load BMC data from Ksheersagar file if available
-        if os.path.exists(EXCEL_FILE_PATH):
-            all_data_df = pd.read_excel(EXCEL_FILE_PATH, sheet_name=None)
-            
-            farmer_sheet_name = None
-            bmc_sheet_name = None
-            field_team_sheet_name = None
-            training_sheet_name = None
-            
-            for sheet_name, df_sheet in all_data_df.items():
-                if any(FARMER_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
-                    farmer_sheet_name = sheet_name
-                if any(BMC_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
-                    bmc_sheet_name = sheet_name
-                if any(FIELD_TEAM_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
-                    field_team_sheet_name = sheet_name
-                if any(TRAINING_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
-                    training_sheet_name = sheet_name
-            
-            farmer_df = all_data_df.get(farmer_sheet_name, pd.DataFrame())
-            bmc_df = all_data_df.get(bmc_sheet_name, pd.DataFrame())
-            field_team_df = all_data_df.get(field_team_sheet_name, pd.DataFrame())
-            training_df = all_data_df.get(training_sheet_name, pd.DataFrame())
-            
-            if training_sheet_name:
-                if 'Total_Training' in all_data_df[training_sheet_name].columns and 'No_of_Farmers' in all_data_df[training_sheet_name].columns:
-                    summary_df = all_data_df[training_sheet_name]
-            
-            st.success("Ksheersagar data loaded!")
-            
-        # Load Govind and SDDPL BMC data
-        govind_bmc_df = load_govind_bmc_data()
-        sddpl_bmc_df = load_sddpl_bmc_data()
-
-        # Combine all BMC dataframes
-        # Identify all unique columns across all BMC dataframes to ensure consistent columns for concat
-        all_bmc_cols = set(bmc_df.columns).union(set(govind_bmc_df.columns)).union(set(sddpl_bmc_df.columns))
-
-        # Reindex each DataFrame to have all common columns, filling missing with pd.NA
-        # This step is crucial to prevent Pandas from coercing mixed types (e.g., bool/int to object)
-        # and to ensure proper alignment during concatenation.
-        
-        # Create a list of dataframes to process
-        dfs_to_process = [bmc_df, govind_bmc_df, sddpl_bmc_df]
-        processed_dfs = []
-
-        for df_in_list in dfs_to_process:
-            if not df_in_list.empty:
-                # Add missing columns with pd.NA
-                for col in all_bmc_cols:
-                    if col not in df_in_list.columns:
-                        df_in_list[col] = pd.NA
-                # Reorder columns to match 'all_bmc_cols' set for consistent schema
-                df_in_list = df_in_list[list(all_bmc_cols)] 
-                # Ensure 'Date' column is datetime before concatenation
-                if 'Date' in df_in_list.columns:
-                    df_in_list['Date'] = pd.to_datetime(df_in_list['Date'], errors='coerce')
-                # Ensure BMC_ID is string
-                if 'BMC_ID' in df_in_list.columns:
-                    df_in_list['BMC_ID'] = df_in_list['BMC_ID'].astype(str)
-                processed_dfs.append(df_in_list)
-            
-        # Concatenate all BMC data.
-        # Ensure we only concatenate non-empty dataframes
-        if processed_dfs:
-            combined_bmc_df = pd.concat(processed_dfs, ignore_index=True)
-        else:
-            combined_bmc_df = pd.DataFrame(columns=list(all_bmc_cols)) # Create an empty DF with all expected columns
-
-        # Drop duplicates, keeping the latest entry for each BMC_ID based on 'Date'
-        if 'BMC_ID' in combined_bmc_df.columns and not combined_bmc_df.empty:
-            if 'Date' in combined_bmc_df.columns and combined_bmc_df['Date'].notna().any(): # Check if 'Date' has non-NaN values
-                # Sort by Date descending to keep the latest
-                bmc_df = combined_bmc_df.sort_values(by='Date', ascending=False).drop_duplicates(subset='BMC_ID', keep='first')
-            else:
-                # If no meaningful date column, just drop duplicates based on BMC_ID
-                bmc_df = combined_bmc_df.drop_duplicates(subset='BMC_ID', keep='first')
-        else:
-            bmc_df = combined_bmc_df # If combined_bmc_df is empty or no BMC_ID, no duplicates to drop
-
-        return farmer_df, bmc_df, field_team_df, training_df, summary_df
-
-    except Exception as e:
-        st.error(f"Error loading and combining data from Excel files: {e}. Falling back to dummy data.")
-        # Fallback to dummy data in case of any loading/processing error with real files
+3.  **Archivo Excel dañado o formato incorrecto:**
+    * Aunque menos común, el archivo Excel podría estar dañado o tener un formato que `pandas` no pueda leer correctamente.
+    * **Verificación:** Intenta abrir el archivo `KSHEERSAGAR LTD File.xlsx` manualmente con `pandas.read_excel()` en un entorno Python simple (fuera de Streamlit) para ver si se lee sin errores.
+        ```python
+        import pandas as pd
         try:
-            farmer_df = pd.read_csv(StringIO(FALLBACK_FARMERS_CSV))
-            bmc_df = pd.read_csv(StringIO(FALLBACK_BMCS_CSV))
-            field_team_df = pd.read_csv(StringIO(FALLBACK_FIELD_TEAMS_CSV))
-            training_df = pd.read_csv(StringIO(FALLBACK_TRAINING_DATA))
-            summary_df = pd.read_csv(StringIO(SUMMARY_DATA))
-            
-            # Ensure fallback BMC_DF has 'Utilization_Percentage_Calculated' or relevant columns for analysis
-            if 'Daily_Collection_Liters' in bmc_df.columns and 'Capacity_Liters' in bmc_df.columns:
-                bmc_df['Daily_Collection_Liters'] = pd.to_numeric(bmc_df['Daily_Collection_Liters'], errors='coerce')
-                bmc_df['Capacity_Liters'] = pd.to_numeric(bmc_df['Capacity_Liters'], errors='coerce')
-                # Only calculate if Capacity_Liters is not zero to avoid ZeroDivisionError
-                bmc_df['Utilization_Percentage_Calculated'] = (
-                    bmc_df['Daily_Collection_Liters'] / bmc_df['Capacity_Liters'].replace(0, pd.NA)
-                ) * 100
-                bmc_df['Effective_Utilization'] = bmc_df['Utilization_Percentage_Calculated'] # For dummy data, they are the same
-            
-            st.warning("Could not load real data; using fallback dummy data.")
-            return farmer_df, bmc_df, field_team_df, training_df, summary_df
-        except Exception as e_fallback:
-            st.error(f"Critical error: Could not load even fallback dummy data. Error: {e_fallback}")
-            st.stop()
-
-
-# --- Workplan Data Handling Functions ---
-def load_workplans() -> pd.DataFrame:
-    """Loads daily workplans from a CSV file."""
-    if os.path.exists(WORKPLAN_FILE_PATH):
-        try:
-            df = pd.read_csv(WORKPLAN_FILE_PATH)
-            # Ensure 'Date' column is datetime
-            df['Date'] = pd.to_datetime(df['Date']).dt.date # Store as date only
-            return df
+            df = pd.read_excel("KSHEERSAGAR LTD File.xlsx", sheet_name=None)
+            print("Archivo Excel leído correctamente.")
+            # Puedes imprimir las claves para ver los nombres de las hojas
+            print(df.keys())
         except Exception as e:
-            st.error(f"Error loading workplans: {e}")
-            return pd.DataFrame(columns=['Date', 'Field Team Member', 'Activity', 'Target', 'Achieved'])
-    return pd.DataFrame(columns=['Date', 'Field Team Member', 'Activity', 'Target', 'Achieved'])
+            print(f"Error al leer el archivo Excel: {e}")
+        ```
+    * **Solución:** Regenera o repara el archivo Excel.
 
-def save_workplans(df: pd.DataFrame):
-    """Saves daily workplans to a CSV file."""
+4.  **Nombres de hojas incorrectos o no encontrados:**
+    * Tu función `load_data` itera sobre las hojas y busca identificadores. Si los nombres de las hojas en `KSHEERSAGAR LTD File.xlsx` no contienen "Farmer", "BMC", "FieldTeam" o "Training" (según tus `*_IDENTIFIER` constantes), esas hojas no se cargarán.
+    * **Verificación:** Asegúrate de que las hojas relevantes en tu `KSHEERSAGAR LTD File.xlsx` realmente contengan esas palabras clave en sus nombres. Por ejemplo, si tienes una hoja llamada "Datos_de_Agricultores", tu `FARMER_IDENTIFIER` no la encontrará.
+    * **Solución:**
+        * Renombra las hojas en tu Excel para que coincidan con los identificadores.
+        * O bien, ajusta tus constantes `*_IDENTIFIER` para que coincidan con los nombres de tus hojas.
+        * Si sabes los nombres exactos de las hojas, puedes cargarlas directamente:
+            ```python
+            df_farmer = pd.read_excel(file_path, sheet_name="NombreExactoDeHojaFarmer")
+            ```
+
+---
+
+**Cómo obtener el error específico dentro de Streamlit:**
+
+Para ver el error exacto que está causando el "fallback", modifica temporalmente tu función `load_data()` para imprimir la excepción completa:
+
+```python
+@st.cache_data
+def load_data():
+    data = {}
     try:
-        df.to_csv(WORKPLAN_FILE_PATH, index=False)
-        st.success("Workplan saved successfully!")
-    except Exception as e:
-        st.error(f"Error saving workplan: {e}")
+        # Load BMC, Farmer, FieldTeam, and Training data from the main Excel file
+        xls = pd.ExcelFile(EXCEL_FILE_PATH)
+        for sheet_name in xls.sheet_names:
+            df_sheet = pd.read_excel(xls, sheet_name=sheet_name)
+            # Infer sheet types based on column names (or adjust if you have fixed sheet names)
+            if any(FARMER_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
+                data['farmer'] = df_sheet
+            elif any(BMC_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
+                data['bmc'] = df_sheet
+            elif any(FIELD_TEAM_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
+                data['field_team'] = df_sheet
+            elif any(TRAINING_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
+                data['training'] = df_sheet
 
-# MOVED: This function must be defined BEFORE it's called in the Streamlit UI.
-def get_admin_status():
-    """Checks admin status based on session state."""
-    return st.session_state.get('is_admin', False)
+        # --- Hardcoded dummy data for Govind and SDDPL if files are not used ---
+        # If you were previously reading these from files, replace that with this:
+        govind_dummy_data = {
+            # Paste the Govind data dictionary here from my previous response
+            'Sr. No.': [1, 2, ...],
+            'Date': ['6/1/2025', '6/1/2025', ...],
+            # ... and so on for all columns
+        }
+        data['govind_compiled'] = pd.DataFrame(govind_dummy_data)
+        data['govind_compiled']['Date'] = pd.to_datetime(data['govind_compiled']['Date'], format='%m/%d/%Y') # Ensure Date is datetime
 
-# --- Existing Analysis and Target Generation Functions (MODIFIED) ---
-def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
-    """
-    Analyzes BMC data against KPIs and identifies low-performing BMCs.
-    Returns a dictionary of low-performing BMCs for each KPI.
-    """
-    if 'Date' in bmc_df.columns:
-        bmc_df['Date'] = pd.to_datetime(bmc_df['Date'], errors='coerce') # Coerce errors to NaT
-        # Filter out rows where 'Date' is NaT before idxmax
-        latest_bmc_df = bmc_df.loc[bmc_df.dropna(subset=['Date']).groupby('BMC_ID')['Date'].idxmax()].copy()
-    else:
-        latest_bmc_df = bmc_df.copy()
+        # Placeholder for SDDPL data - YOU NEED TO FILL THIS IN if you have it
+        sddpl_dummy_data = {
+            'Sr. No.': [1, 2, ...], # Example
+            'Date': ['6/1/2025', '6/1/2025', ...], # Example
+            # ... all SDDPL columns
+        }
+        data['sddpl_compiled'] = pd.DataFrame(sddpl_dummy_data)
+        data['sddpl_compiled']['Date'] = pd.to_datetime(data['sddpl_compiled']['Date'], format='%m/%d/%Y') # Ensure Date is datetime
 
-    low_performing_bmcs = {
-        'Volume': pd.DataFrame(), # New KPI for Volume
-        'Utilization': pd.DataFrame(),
-        'Quality_General': pd.DataFrame(), # General quality issues (Fat, SNF, Adulteration)
-        'Quality_Alcohol': pd.DataFrame(),
-        'Quality_MBRP': pd.DataFrame(),
-        'Quality_Aflatoxins': pd.DataFrame(),
-        'Quality_AB_Positive': pd.DataFrame(),
-        'Quality_Sulpha': pd.DataFrame(),
-        'Quality_Capa': pd.DataFrame(),
-        'Animal_Welfare': pd.DataFrame(),
-        'Women_Empowerment': pd.DataFrame()
-    }
+        # ... (rest of your data processing logic for the loaded dataframes)
 
-    # --- KPI THRESHOLDS (Adjust as needed) ---
-    QUALITY_FAT_THRESHOLD = 3.5
-    QUALITY_SNF_THRESHOLD = 7.8
-    UTILIZATION_THRESHOLD = 70.0
-    ANIMAL_WELFARE_THRESHOLD = 4.0
-    WOMEN_EMPOWERMENT_THRESHOLD = 55.0
-    VOLUME_THRESHOLD_LITERS = 500 # Example: BMCs collecting less than 500 liters daily
-    
-    # Quality specific thresholds (assuming 0 for negative results indicates good, >0 indicates issue)
-    QUALITY_AB_POSITIVE_THRESHOLD = 0.0 # No positive tests allowed
-    QUALITY_SULPHA_THRESHOLD = 0.0
-    QUALITY_BETA_MBRP_THRESHOLD = 0.0 # Beta is used for MBRP in Govind, MBRP for SDDPL
-    QUALITY_CAPA_THRESHOLD = 0.0
-    QUALITY_AFLATOXINS_THRESHOLD = 0.0 # Often ppm or ppb, 0 indicates no detection
-    QUALITY_ALCOHOL_POSITIVE_THRESHOLD = 0.0 # Often a flag (0 or 1), or a value
+        # Assuming 'bmc' is the main DataFrame you're working with for general analysis
+        # If 'bmc' is not loaded from Excel, it will be None here unless handled.
+        # You might need to decide which DataFrame serves as the "main" one for your analysis
+        # if you're loading parts of the data from different sources.
+        if 'bmc' not in data:
+            st.warning("BMC data not found in KSHEERSAGAR LTD File.xlsx. Some analyses might be incomplete.")
+            # Optionally, you can create a dummy BMC if it's strictly required
+            data['bmc'] = pd.DataFrame(columns=['BMC Code', 'BMC Name']) # Empty DataFrame or small dummy
+            
+        # Ensure all required dataframes are present, even if empty
+        for key in ['farmer', 'field_team', 'training', 'govind_compiled', 'sddpl_compiled']:
+            if key not in data:
+                data[key] = pd.DataFrame() # Ensure an empty DataFrame exists if not loaded/hardcoded
 
-    # --- Volume Analysis ---
-    if 'Daily_Collection_Liters' in latest_bmc_df.columns:
-        latest_bmc_df['Daily_Collection_Liters'] = pd.to_numeric(latest_bmc_df['Daily_Collection_Liters'], errors='coerce')
-        low_volume_bmcs = latest_bmc_df[latest_bmc_df['Daily_Collection_Liters'] < VOLUME_THRESHOLD_LITERS]
-        if not low_volume_bmcs.empty:
-            low_performing_bmcs['Volume'] = low_volume_bmcs.copy()
-            low_performing_bmcs['Volume']['Reason'] = 'Low Milk Volume'
-
-    # --- Utilization Analysis ---
-    if 'Daily_Collection_Liters' in latest_bmc_df.columns and 'Capacity_Liters' in latest_bmc_df.columns:
-        # Ensure columns are numeric
-        latest_bmc_df['Daily_Collection_Liters'] = pd.to_numeric(latest_bmc_df['Daily_Collection_Liters'], errors='coerce')
-        latest_bmc_df['Capacity_Liters'] = pd.to_numeric(latest_bmc_df['Capacity_Liters'], errors='coerce')
-
-        # Calculate Calculated_Utilization if Capacity_Liters is not zero/NA
-        latest_bmc_df['Calculated_Utilization'] = (
-            latest_bmc_df['Daily_Collection_Liters'] / 
-            latest_bmc_df['Capacity_Liters'].replace(0, pd.NA) # Replace 0 capacity with NA to avoid ZeroDivisionError
-        ) * 100
+        # Combine BMC data (assuming 'bmc' is loaded from KSHEERSAGAR LTD File.xlsx)
+        # and 'govind_compiled' and 'sddpl_compiled' for your KPI analysis
+        # This part depends on how your combined data structure is expected to look.
+        # For demonstration, let's assume you want to concatenate them if their columns align.
+        # You'll need to adapt this based on the actual columns in Govind and SDDPL data
+        # that should be part of the BMC analysis.
         
-        # MODIFIED: Check for 'Utilization_Percentage_Calculated' existence before using it
-        if 'Utilization_Percentage_Calculated' in latest_bmc_df.columns:
-            latest_bmc_df['Effective_Utilization'] = latest_bmc_df['Utilization_Percentage_Calculated'].fillna(latest_bmc_df['Calculated_Utilization'])
+        # Example of combining if columns are similar for analysis:
+        # Identify common columns that you want to merge/concatenate
+        common_cols = ['Date', 'BMC Code', 'BMC Name', 'Milk Qty. (LTR)', 'FAT', 'SNF'] # Adjust as needed
+        
+        # Ensure 'bmc' exists and has common_cols for concatenation, if not, create an empty one
+        if 'bmc' not in data or data['bmc'].empty:
+             st.warning("Main BMC data from Excel is missing. KPI calculations might be limited.")
+             combined_df = pd.DataFrame(columns=common_cols)
         else:
-            latest_bmc_df['Effective_Utilization'] = latest_bmc_df['Calculated_Utilization'] # If Govind's column isn't there, just use the calculated one
-        
-        # Only proceed if 'Effective_Utilization' was successfully created and has valid numbers
-        if 'Effective_Utilization' in latest_bmc_df.columns and latest_bmc_df['Effective_Utilization'].notna().any():
-            low_util_bmcs = latest_bmc_df[latest_bmc_df['Effective_Utilization'] < UTILIZATION_THRESHOLD]
-            if not low_util_bmcs.empty:
-                low_performing_bmcs['Utilization'] = low_util_bmcs.copy()
-                low_performing_bmcs['Utilization']['Reason'] = 'Low Utilization'
+             combined_df = data['bmc'][common_cols].copy() # Start with main BMC data
 
-
-    # --- Quality Analysis (General: Fat, SNF, Adulteration) ---
-    low_quality_fat = pd.DataFrame()
-    if 'Quality_Fat_Percentage' in latest_bmc_df.columns:
-        latest_bmc_df['Quality_Fat_Percentage'] = pd.to_numeric(latest_bmc_df['Quality_Fat_Percentage'], errors='coerce')
-        low_quality_fat = latest_bmc_df[latest_bmc_df['Quality_Fat_Percentage'] < QUALITY_FAT_THRESHOLD] 
-    
-    low_quality_snf = pd.DataFrame()
-    if 'Quality_SNF_Percentage' in latest_bmc_df.columns:
-        latest_bmc_df['Quality_SNF_Percentage'] = pd.to_numeric(latest_bmc_df['Quality_SNF_Percentage'], errors='coerce')
-        low_quality_snf = latest_bmc_df[latest_bmc_df['Quality_SNF_Percentage'] < QUALITY_SNF_THRESHOLD] 
-    
-    adulteration_issues = pd.DataFrame()
-    if 'Quality_Adulteration_Flag' in latest_bmc_df.columns:
-        adulteration_issues = latest_bmc_df[latest_bmc_df['Quality_Adulteration_Flag'].astype(str).str.lower() == 'yes'] 
-
-    general_quality_issues = pd.concat([low_quality_fat, low_quality_snf, adulteration_issues]).drop_duplicates(subset=['BMC_ID'])
-    if not general_quality_issues.empty:
-        low_performing_bmcs['Quality_General'] = general_quality_issues
-        low_performing_bmcs['Quality_General']['Reason'] = 'Low Fat/SNF or Adulteration'
-
-    # --- New Quality Analysis (Alcohol/MBRP/Aflatoxins/AB Positive/Sulfa/Capa) ---
-    if 'Quality_Alcohol_Positive' in latest_bmc_df.columns:
-        latest_bmc_df['Quality_Alcohol_Positive'] = pd.to_numeric(latest_bmc_df['Quality_Alcohol_Positive'], errors='coerce')
-        low_alcohol = latest_bmc_df[latest_bmc_df['Quality_Alcohol_Positive'] > QUALITY_ALCOHOL_POSITIVE_THRESHOLD].copy()
-        if not low_alcohol.empty:
-            low_performing_bmcs['Quality_Alcohol'] = low_alcohol
-            low_performing_bmcs['Quality_Alcohol']['Reason'] = 'Alcohol Positive'
-
-    # MBRP (Beta from Govind, 4IN1 STRIP from SDDPL)
-    mbrp_issues = pd.DataFrame()
-    if 'Quality_Beta' in latest_bmc_df.columns: # From Govind
-        latest_bmc_df['Quality_Beta'] = pd.to_numeric(latest_bmc_df['Quality_Beta'], errors='coerce')
-        mbrp_issues = pd.concat([mbrp_issues, latest_bmc_df[latest_bmc_df['Quality_Beta'] > QUALITY_BETA_MBRP_THRESHOLD].copy()])
-    if 'Quality_MBRP' in latest_bmc_df.columns: # From SDDPL
-        latest_bmc_df['Quality_MBRP'] = pd.to_numeric(latest_bmc_df['Quality_MBRP'], errors='coerce')
-        mbrp_issues = pd.concat([mbrp_issues, latest_bmc_df[latest_bmc_df['Quality_MBRP'] > QUALITY_BETA_MBRP_THRESHOLD].copy()])
-    if not mbrp_issues.empty:
-        low_performing_bmcs['Quality_MBRP'] = mbrp_issues.drop_duplicates(subset=['BMC_ID'])
-        low_performing_bmcs['Quality_MBRP']['Reason'] = 'MBRP Positive'
-
-    if 'Quality_Aflatoxins' in latest_bmc_df.columns:
-        latest_bmc_df['Quality_Aflatoxins'] = pd.to_numeric(latest_bmc_df['Quality_Aflatoxins'], errors='coerce')
-        low_aflatoxins = latest_bmc_df[latest_bmc_df['Quality_Aflatoxins'] > QUALITY_AFLATOXINS_THRESHOLD].copy()
-        if not low_aflatoxins.empty:
-            low_performing_bmcs['Quality_Aflatoxins'] = low_aflatoxins
-            low_performing_bmcs['Quality_Aflatoxins']['Reason'] = 'Aflatoxins Positive'
-
-    if 'Quality_AB_Positive' in latest_bmc_df.columns:
-        latest_bmc_df['Quality_AB_Positive'] = pd.to_numeric(latest_bmc_df['Quality_AB_Positive'], errors='coerce')
-        low_ab_positive = latest_bmc_df[latest_bmc_df['Quality_AB_Positive'] > QUALITY_AB_POSITIVE_THRESHOLD].copy()
-        if not low_ab_positive.empty:
-            low_performing_bmcs['Quality_AB_Positive'] = low_ab_positive
-            low_performing_bmcs['Quality_AB_Positive']['Reason'] = 'Antibiotic Positive'
-
-    if 'Quality_Sulpha' in latest_bmc_df.columns:
-        latest_bmc_df['Quality_Sulpha'] = pd.to_numeric(latest_bmc_df['Quality_Sulpha'], errors='coerce')
-        low_sulpha = latest_bmc_df[latest_bmc_df['Quality_Sulpha'] > QUALITY_SULPHA_THRESHOLD].copy()
-        if not low_sulpha.empty:
-            low_performing_bmcs['Quality_Sulpha'] = low_sulpha
-            low_performing_bmcs['Quality_Sulpha']['Reason'] = 'Sulpha Positive'
-
-    if 'Quality_Capa' in latest_bmc_df.columns:
-        latest_bmc_df['Quality_Capa'] = pd.to_numeric(latest_bmc_df['Quality_Capa'], errors='coerce')
-        low_capa = latest_bmc_df[latest_bmc_df['Quality_Capa'] > QUALITY_CAPA_THRESHOLD].copy()
-        if not low_capa.empty:
-            low_performing_bmcs['Quality_Capa'] = low_capa
-            low_performing_bmcs['Quality_Capa']['Reason'] = 'Capa Positive'
+        if not data['govind_compiled'].empty:
+            govind_df_for_concat = data['govind_compiled'][common_cols].copy()
+            combined_df = pd.concat([combined_df, govind_df_for_concat], ignore_index=True)
             
-    # --- Animal Welfare Analysis ---
-    if 'Animal_Welfare_Compliance_Score_BMC' in latest_bmc_df.columns:
-        latest_bmc_df['Animal_Welfare_Compliance_Score_BMC'] = pd.to_numeric(latest_bmc_df['Animal_Welfare_Compliance_Score_BMC'], errors='coerce')
-        low_animal_welfare = latest_bmc_df[
-            latest_bmc_df['Animal_Welfare_Compliance_Score_BMC'] < ANIMAL_WELFARE_THRESHOLD]
-        if not low_animal_welfare.empty:
-            low_performing_bmcs['Animal_Welfare'] = low_animal_welfare.copy()
-            low_performing_bmcs['Animal_Welfare']['Reason'] = 'Low Animal Welfare Score'
-
-    # --- Women Empowerment Analysis ---
-    if 'Women_Empowerment_Participation_Rate_BMC' in latest_bmc_df.columns:
-        latest_bmc_df['Women_Empowerment_Participation_Rate_BMC'] = pd.to_numeric(latest_bmc_df['Women_Empowerment_Participation_Rate_BMC'], errors='coerce')
-        low_women_empowerment = latest_bmc_df[
-            latest_bmc_df['Women_Empowerment_Participation_Rate_BMC'] < WOMEN_EMPOWERMENT_THRESHOLD]
-        if not low_women_empowerment.empty:
-            low_performing_bmcs['Women_Empowerment'] = low_women_empowerment.copy()
-            low_performing_bmcs['Women_Empowerment']['Reason'] = 'Low Women Empowerment Rate'
-
-    return low_performing_bmcs
-
-
-def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[str]:
-    """
-    Generates actionable insights and suggested targets for low-performing BMCs.
-    This is a simplified example. Real logic would be more complex.
-    """
-    action_items = []
-    for kpi, df in low_bmcs_dict.items():
-        if not df.empty:
-            for index, row in df.iterrows():
-                bmc_id = row['BMC_ID']
-                bmc_name = row.get('BMC_Name', bmc_id) # Use name if available, else ID
-                district = row.get('District', 'N/A')
-
-                if kpi == 'Volume':
-                    current_volume = row.get('Daily_Collection_Liters', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Low Milk Volume** ({current_volume} L). "
-                        f"**Action:** Field team to assess local farmer engagement, improve milk procurement strategies, and optimize collection routes. "
-                        f"**Target:** Increase daily collection by 15% within 2 months."
-                    )
-                elif kpi == 'Utilization':
-                    current_util = row.get('Effective_Utilization', 'N/A') # Use Effective_Utilization
-                    target_util = row.get('Utilization_Target_Percentage', '80')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Low Utilization** ({current_util:.2f}%). "
-                        f"**Action:** Identify reasons for low collection, farmer mobilization campaigns, improve logistics and infrastructure utilization. "
-                        f"**Target:** Increase utilization to {target_util}% (or +5% points) within 2 months."
-                    )
-                elif kpi == 'Quality_General':
-                    current_fat = row.get('Quality_Fat_Percentage', 'N/A')
-                    current_snf = row.get('Quality_SNF_Percentage', 'N/A')
-                    adulteration = row.get('Quality_Adulteration_Flag', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **General Low Quality** (Fat: {current_fat}%, SNF: {current_snf}%, Adulteration: {adulteration}). "
-                        f"**Action:** Field team to visit for comprehensive quality checks, farmer awareness on clean milk production, and proper testing protocols. "
-                        f"**Target:** Increase Fat to >3.8% and SNF to >8.0%, and eliminate adulteration within 1 month."
-                    )
-                elif kpi == 'Quality_Alcohol':
-                    current_value = row.get('Quality_Alcohol_Positive', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Alcohol Positive Milk Issues** (Value: {current_value}). "
-                        f"**Action:** Immediate investigation into feed, water, and animal health for potential causes. Farmer training on avoiding fermentation and proper storage. "
-                        f"**Target:** Eliminate alcohol positive results within 2 weeks."
-                    )
-                elif kpi == 'Quality_MBRP':
-                    current_beta = row.get('Quality_Beta', 'N/A')
-                    current_mbrp = row.get('Quality_MBRP', 'N/A')
-                    value_str = f"Beta: {current_beta}, MBRP: {current_mbrp}" if current_beta != 'N/A' and current_mbrp != 'N/A' else str(current_beta if current_beta != 'N/A' else current_mbrp)
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **MBRP/Beta Positive Issues** (Values: {value_str}). "
-                        f"**Action:** Focus on cleanliness, hygiene at farm level, and proper cooling of milk. Training on bacteria control. "
-                        f"**Target:** Eliminate MBRP/Beta positive results within 2 weeks."
-                    )
-                elif kpi == 'Quality_Aflatoxins':
-                    current_value = row.get('Quality_Aflatoxins', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Aflatoxins Positive Issues** (Value: {current_value}). "
-                        f"**Action:** Urgent assessment of feed quality, storage conditions, and sourcing. Provide alternatives for contaminated feed. "
-                        f"**Target:** Eliminate Aflatoxins positive results within 2 weeks."
-                    )
-                elif kpi == 'Quality_AB_Positive':
-                    current_value = row.get('Quality_AB_Positive', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Antibiotic Positive Milk Issues** (Value: {current_value}). "
-                        f"**Action:** Review animal health protocols, responsible antibiotic use, and milk withdrawal periods. Farmer education on proper veterinary practices. "
-                        f"**Target:** Eliminate antibiotic positive results within 2 weeks."
-                    )
-                elif kpi == 'Quality_Sulpha':
-                    current_value = row.get('Quality_Sulpha', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Sulpha Positive Issues** (Value: {current_value}). "
-                        f"**Action:** Investigate potential sources of sulpha contamination, likely feed or incorrect medication practices. "
-                        f"**Target:** Eliminate sulpha positive results within 2 weeks."
-                    )
-                elif kpi == 'Quality_Capa':
-                    current_value = row.get('Quality_Capa', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Capa Positive Issues** (Value: {current_value}). "
-                        f"**Action:** Address potential issues with cleaning agents, water quality, or external contaminants at the BMC or farm. "
-                        f"**Target:** Eliminate Capa positive results within 2 weeks."
-                    )
-                elif kpi == 'Animal_Welfare':
-                    current_score = row.get('Animal_Welfare_Compliance_Score_BMC', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Low Animal Welfare Score** ({current_score}). "
-                        f"**Action:** Conduct farmer training on animal health, hygiene, proper housing, and ethical treatment. "
-                        f"**Target:** Improve average animal welfare score to >4.5 within 3 months."
-                    )
-                elif kpi == 'Women_Empowerment':
-                    current_rate = row.get('Women_Empowerment_Participation_Rate_BMC', 'N/A')
-                    action_items.append(
-                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Low Women Empowerment Participation** ({current_rate:.2f}%). "
-                        f"**Action:** Organize women's self-help group meetings, promote female farmer participation in dairy activities and decision-making. "
-                        f"**Target:** Increase women empowerment participation rate to >65% within 3 months."
-                    )
-    return action_items
-
-
-# --- Main Application Logic ---
-# This is where the data is loaded and cached
-farmer_df, bmc_df, field_team_df, training_df, summary_df = load_data()
-
-# Initialize session state for workplans if not already present
-if 'workplans_df' not in st.session_state:
-    st.session_state.workplans_df = load_workplans()
-if 'is_admin' not in st.session_state:
-    st.session_state.is_admin = False
-if 'admin_email_input' not in st.session_state:
-    st.session_state.admin_email_input = ""
-
-
-st.title("Ksheersagar Dairy Performance Dashboard & Workplan")
-st.markdown("---")
-
-# --- Admin Login Section ---
-st.sidebar.header("Admin Login")
-admin_email_input = st.sidebar.text_input("Enter your admin email", value=st.session_state.admin_email_input)
-
-# Check if the input email is in the authorized list
-if admin_email_input:
-    st.session_state.admin_email_input = admin_email_input # Store in session state
-    if admin_email_input.lower() in [email.lower() for email in AUTHORIZED_ADMIN_EMAILS]:
-        st.session_state.is_admin = True
-        st.sidebar.success(f"Admin access granted for {admin_email_input}!")
-    else:
-        st.session_state.is_admin = False
-        st.sidebar.error("Unauthorized email address.")
-else:
-    st.session_state.is_admin = False
-
-
-# --- Workplan Entry Section ---
-st.header("Daily Workplan Entry")
-st.markdown("---")
-
-with st.form("daily_workplan_form"):
-    col_date, col_member = st.columns(2)
-    with col_date:
-        workplan_date = st.date_input("Select Date", datetime.date.today())
-    with col_member:
-        selected_member = st.selectbox("Select Field Team Member", FIELD_TEAM_MEMBERS)
-
-    st.subheader(f"Workplan for {selected_member} on {workplan_date.strftime('%Y-%m-%d')}")
-
-    # Dictionary to store targets and achieved for each activity
-    current_targets = {}
-    current_achieved = {}
-
-    for activity in ACTIVITIES:
-        st.markdown(f"**{activity}**")
-        col_target, col_achieved = st.columns(2)
-        
-        # Filter for existing data for this specific activity, member, and date
-        existing_entry = st.session_state.workplans_df.loc[
-            (st.session_state.workplans_df['Date'] == workplan_date) &
-            (st.session_state.workplans_df['Field Team Member'] == selected_member) &
-            (st.session_state.workplans_df['Activity'] == activity)
-        ]
-
-        with col_target:
-            target_key = f"{selected_member}_{activity}_target_{workplan_date}"
-            # Ensure default_target is an integer for number_input
-            default_target = int(existing_entry['Target'].iloc[0]) if not existing_entry.empty and pd.notna(existing_entry['Target'].iloc[0]) else 0
-            current_targets[activity] = st.number_input(f"Target for {activity}", min_value=0, value=default_target, key=target_key)
-        
-        with col_achieved:
-            achieved_key = f"{selected_member}_{activity}_achieved_{workplan_date}"
-            # Ensure default_achieved is an integer for number_input
-            default_achieved = int(existing_entry['Achieved'].iloc[0]) if not existing_entry.empty and pd.notna(existing_entry['Achieved'].iloc[0]) else 0
+        if not data['sddpl_compiled'].empty:
+            sddpl_df_for_concat = data['sddpl_compiled'][common_cols].copy()
+            combined_df = pd.concat([combined_df, sddpl_df_for_concat], ignore_index=True)
             
-            current_achieved[activity] = st.number_input(
-                f"Achieved for {activity}",
-                min_value=0,
-                value=default_achieved,
-                disabled=not get_admin_status(), # Disable if not admin
-                key=achieved_key
-            )
-            if not get_admin_status():
-                st.info("Admin login required to edit 'Achieved' values.")
-    
-    submitted = st.form_submit_button("Save Daily Workplan")
-    if submitted:
-        new_workplan_entries = []
-        for activity in ACTIVITIES:
-            new_workplan_entries.append({
-                'Date': workplan_date,
-                'Field Team Member': selected_member,
-                'Activity': activity,
-                'Target': current_targets[activity],
-                'Achieved': current_achieved[activity]
-            })
-        
-        new_workplan_df = pd.DataFrame(new_workplan_entries)
+        # Store the combined data for further analysis
+        data['combined_bmc_data'] = combined_df
 
-        # Remove existing entries for the selected member and date to update
-        st.session_state.workplans_df = st.session_state.workplans_df[
-            ~((st.session_state.workplans_df['Date'] == workplan_date) &
-              (st.session_state.workplans_df['Field Team Member'] == selected_member))
-        ]
-        
-        # Concatenate the updated/new entries
-        st.session_state.workplans_df = pd.concat([st.session_state.workplans_df, new_workplan_df], ignore_index=True)
-        save_workplans(st.session_state.workplans_df)
-        st.rerun() # Rerun to refresh the display
-
-st.markdown("---")
-st.header("Workplan Tracking and Download")
-
-# Filter and display workplans
-display_date = st.date_input("View Workplans for Date", datetime.date.today(), key="display_date")
-
-filtered_workplans = st.session_state.workplans_df[
-    st.session_state.workplans_df['Date'] == display_date
-].sort_values(by=['Field Team Member', 'Activity'])
-
-if not filtered_workplans.empty:
-    st.subheader(f"Workplans for {display_date.strftime('%Y-%m-%d')}")
-    st.dataframe(filtered_workplans, use_container_width=True)
-else:
-    st.info(f"No workplans recorded for {display_date.strftime('%Y-%m-%d')}.")
-
-# Download options
-st.subheader("Download Workplan Data")
-
-col_download_daily, col_download_weekly, col_download_monthly = st.columns(3)
-
-with col_download_daily:
-    st.download_button(
-        label="Download Daily Workplans (CSV)",
-        data=st.session_state.workplans_df.to_csv(index=False).encode('utf-8'),
-        file_name="daily_workplans.csv",
-        mime="text/csv",
-    )
-
-with col_download_weekly:
-    st.markdown("#### Weekly Summary")
-    selected_week = st.date_input("Select a date in the week for weekly download", datetime.date.today(), key="weekly_date")
-    start_of_week = selected_week - datetime.timedelta(days=selected_week.weekday())
-    end_of_week = start_of_week + datetime.timedelta(days=6)
-    
-    weekly_data = st.session_state.workplans_df[
-        (st.session_state.workplans_df['Date'] >= start_of_week) &
-        (st.session_state.workplans_df['Date'] <= end_of_week)
-    ]
-    
-    if not weekly_data.empty:
-        weekly_summary = weekly_data.groupby(['Field Team Member', 'Activity']).agg(
-            Total_Target=('Target', 'sum'),
-            Total_Achieved=('Achieved', 'sum')
-        ).reset_index()
-        
-        csv = weekly_summary.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download Weekly Summary (CSV)",
-            data=csv,
-            file_name=f"weekly_workplan_summary_{start_of_week.strftime('%Y%m%d')}_to_{end_of_week.strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-        )
-    else:
-        st.info("No data for this week.")
-
-with col_download_monthly:
-    st.markdown("#### Monthly Summary")
-    selected_month = st.date_input("Select a date in the month for monthly download", datetime.date.today(), key="monthly_date")
-    
-    # Ensure the 'Date' column is treated as datetime objects for month/year comparison
-    monthly_data = st.session_state.workplans_df[
-        (st.session_state.workplans_df['Date'].apply(lambda x: x.month) == selected_month.month) &
-        (st.session_state.workplans_df['Date'].apply(lambda x: x.year) == selected_month.year)
-    ]
-    
-    if not monthly_data.empty:
-        monthly_summary = monthly_data.groupby(['Field Team Member', 'Activity']).agg(
-            Total_Target=('Target', 'sum'),
-            Total_Achieved=('Achieved', 'sum')
-        ).reset_index()
-        
-        csv = monthly_summary.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download Monthly Summary (CSV)",
-            data=csv,
-            file_name=f"monthly_workplan_summary_{selected_month.strftime('%Y%m')}.csv",
-            mime="text/csv",
-        )
-    else:
-        st.info("No data for this month.")
-
-st.markdown("---")
-
-
-# --- Existing Dashboard Sections ---
-st.header("Training Performance")
-st.markdown("---")
-
-# --- Display Raw Tables ---
-st.subheader("📊 Monthly Training Breakdown")
-st.dataframe(training_df, use_container_width=True)
-
-st.subheader("📈 Training Summary Totals")
-st.dataframe(summary_df, use_container_width=True)
-
-
-col1, col2 = st.columns(2)
-
-with col1:
-    if st.checkbox("Show Total Trainings per Topic"):
-        chart_data = summary_df.set_index("Training_Topic")["Total_Training"]
-        st.bar_chart(chart_data)
-
-with col2:
-    if st.checkbox("Show Total Farmers Reached per Topic"):
-        farmer_data = summary_df.set_index("Training_Topic")["No_of_Farmers"]
-        st.bar_chart(farmer_data)
-
-
-st.markdown("---")
-st.header("Data Overview & KPI Analysis")
-
-with st.expander("Show Raw Data Previews"):
-    st.subheader("Farmer Data")
-    st.dataframe(farmer_df.head())
-
-    st.subheader("Combined BMC Data (including Govind & SDDPL)")
-    # Display the BMC data after combining and deduplicating
-    st.dataframe(bmc_df.head())
-    st.write(f"Total BMC records loaded: {len(bmc_df)}")
-    # Safely display sources, checking if the column exists
-    st.write(f"BMC data sources: {bmc_df['Source'].unique().tolist() if 'Source' in bmc_df.columns else 'N/A'}")
-
-
-    st.subheader("Field Team & Training Data")
-    st.dataframe(field_team_df.head())
-
-st.markdown("---")
-st.header("KPI Performance Analysis")
-
-# Call analyze_bmcs with the combined BMC data
-low_performing_bmcs = analyze_bmcs(bmc_df, farmer_df)
-
-if any(not df.empty for df in low_performing_bmcs.values()):
-    st.subheader("Low Performing BMCs Identified:")
-    for kpi, df in low_performing_bmcs.items():
-        if not df.empty:
-            st.write(f"#### {kpi.replace('_', ' ').title()} KPI Concerns:")
-            # Define a base set of columns to display
-            display_cols = ['BMC_ID', 'BMC_Name', 'District', 'Reason', 'Source']
-            
-            # Add specific columns based on the KPI
-            if kpi == 'Volume':
-                display_cols.append('Daily_Collection_Liters')
-            elif kpi == 'Utilization':
-                display_cols.append('Effective_Utilization')
-            elif kpi == 'Quality_General':
-                display_cols.extend(['Quality_Fat_Percentage', 'Quality_SNF_Percentage', 'Quality_Adulteration_Flag'])
-            elif kpi == 'Quality_Alcohol':
-                display_cols.append('Quality_Alcohol_Positive')
-            elif kpi == 'Quality_MBRP':
-                # Check for both possible column names
-                if 'Quality_Beta' in df.columns:
-                    display_cols.append('Quality_Beta')
-                if 'Quality_MBRP' in df.columns:
-                    display_cols.append('Quality_MBRP')
-            elif kpi == 'Quality_Aflatoxins':
-                display_cols.append('Quality_Aflatoxins')
-            elif kpi == 'Quality_AB_Positive':
-                display_cols.append('Quality_AB_Positive')
-            elif kpi == 'Quality_Sulpha':
-                display_cols.append('Quality_Sulpha')
-            elif kpi == 'Quality_Capa':
-                display_cols.append('Quality_Capa')
-            elif kpi == 'Animal_Welfare':
-                display_cols.append('Animal_Welfare_Compliance_Score_BMC')
-            elif kpi == 'Women_Empowerment':
-                display_cols.append('Women_Empowerment_Participation_Rate_BMC')
-
-            # Filter display columns to only include those actually present in the DataFrame
-            columns_to_show = [col for col in display_cols if col in df.columns]
-            st.dataframe(df[columns_to_show].set_index('BMC_ID'))
-            st.markdown("---")
-else:
-    st.success("All BMCs are performing well across the defined KPIs based on current data!")
-
-st.header("Actionable Insights & Targets for Field Team")
-action_items = generate_actionable_targets(low_performing_bmcs)
-
-if action_items:
-    for item in action_items:
-        st.markdown(f"- {item}")
-else:
-    st.info("No specific actionable insights or targets to display as all BMCs are performing well.")
+        return data
+    except FileNotFoundError as e:
+        st.error(f"Error: The Excel file '{EXCEL_FILE_PATH}' was not found. Please ensure it's in the correct directory. Details: {e}")
+        return load_dummy_data() # Fallback
+    except Exception as e:
+        # THIS IS THE KEY PART TO DEBUG
+        st.error(f"Error loading and combining data from Excel files: {e}. Falling back to dummy data.")
+        st.exception(e) # This will print the full traceback in Streamlit
+        return load_dummy_data() # Fallback to dummy data
