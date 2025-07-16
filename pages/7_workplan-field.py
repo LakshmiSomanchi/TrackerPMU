@@ -1,15 +1,16 @@
 import streamlit as st
 import pandas as pd
 import os
-from io import StringIO 
+from io import StringIO
 from typing import Tuple, Dict, List
+import datetime
 
+# --- Constants and Fallback Data (existing code) ---
+EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"
 
-EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx" 
-
-FARMER_IDENTIFIER = "Farmer"  
-BMC_IDENTIFIER = "BMC" 
-FIELD_TEAM_IDENTIFIER = "FieldTeam" 
+FARMER_IDENTIFIER = "Farmer"
+BMC_IDENTIFIER = "BMC"
+FIELD_TEAM_IDENTIFIER = "FieldTeam"
 TRAINING_IDENTIFIER = "Training"
 
 FALLBACK_FARMERS_CSV = """
@@ -50,6 +51,26 @@ Farmer's Training on CMP (25 mins),89,60,24,65,81,120,105,103,100,126,89,102,106
 Total,343,258,128,281,307,372,386,362,330,405,314,365,3851,30808
 """
 
+# --- NEW: Workplan specific constants and data storage ---
+WORKPLAN_FILE_PATH = "daily_workplans.csv"
+ADMIN_PASSWORD = "admin" # Simple password for demonstration
+
+FIELD_TEAM_MEMBERS = [
+    "Dr. Sachin Wadapalliwar",
+    "Bhushan Sananse",
+    "Nilesh Dhanwate",
+    "Subhrat",
+    "Aniket Govenkar",
+]
+
+ACTIVITIES = [
+    "Monitoring and evaluation of farms and BMCs",
+    "Training: DEOs, QIs, MPOs, BCF and Lead Farmers",
+    "Assessment: KS 1.0 Endline and KS 2.0 Baseline",
+    "Governance: Weekly/Monthly",
+]
+
+# --- Existing Data Loading Functions ---
 st.set_page_config(layout="wide")
 
 @st.cache_data(show_spinner="Loading Ksheersagar data...")
@@ -57,16 +78,38 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
     """
     Attempts to load data from an Excel file and split it into DataFrames, then falls back to embedded dummy CSV data.
     """
-
     try:
-        all_data_df = pd.read_excel(EXCEL_FILE_PATH)
-
-        farmer_df = all_data_df[all_data_df.apply(lambda row: any(str(FARMER_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        bmc_df = all_data_df[all_data_df.apply(lambda row: any(str(BMC_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        field_team_df = all_data_df[all_data_df.apply(lambda row: any(str(FIELD_TEAM_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        training_df = all_data_df[all_data_df.apply(lambda row: any(str(TRAINING_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        summary_df = all_data_df[all_data_df.apply(lambda row: any(str(TRAINING_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-
+        all_data_df = pd.read_excel(EXCEL_FILE_PATH, sheet_name=None) # Load all sheets
+        
+        # Determine which sheet contains which identifier
+        farmer_sheet_name = None
+        bmc_sheet_name = None
+        field_team_sheet_name = None
+        training_sheet_name = None
+        
+        for sheet_name, df_sheet in all_data_df.items():
+            if any(FARMER_IDENTIFIER.lower() in str(x).lower() for x in df_sheet.columns):
+                farmer_sheet_name = sheet_name
+            if any(BMC_IDENTIFIER.lower() in str(x).lower() for x in df_sheet.columns):
+                bmc_sheet_name = sheet_name
+            if any(FIELD_TEAM_IDENTIFIER.lower() in str(x).lower() for x in df_sheet.columns):
+                field_team_sheet_name = sheet_name
+            if any(TRAINING_IDENTIFIER.lower() in str(x).lower() for x in df_sheet.columns):
+                training_sheet_name = sheet_name
+        
+        farmer_df = all_data_df.get(farmer_sheet_name, pd.DataFrame())
+        bmc_df = all_data_df.get(bmc_sheet_name, pd.DataFrame())
+        field_team_df = all_data_df.get(field_team_sheet_name, pd.DataFrame())
+        training_df = all_data_df.get(training_sheet_name, pd.DataFrame())
+        
+        # Assuming summary data might be in the same training sheet or a separate one
+        # For now, let's assume if 'Total_Training' and 'No_of_Farmers' columns exist, it's summary_df
+        summary_df = pd.DataFrame()
+        if training_sheet_name:
+            if 'Total_Training' in all_data_df[training_sheet_name].columns and 'No_of_Farmers' in all_data_df[training_sheet_name].columns:
+                summary_df = all_data_df[training_sheet_name]
+            # If summary data is on a different sheet, you'd need to identify it similarly
+            
         st.success("Data loaded and split from the Excel file!")
         return farmer_df, bmc_df, field_team_df, training_df, summary_df
 
@@ -86,6 +129,33 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
         st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
         st.stop()
 
+# --- NEW: Workplan Data Handling Functions ---
+def load_workplans() -> pd.DataFrame:
+    """Loads daily workplans from a CSV file."""
+    if os.path.exists(WORKPLAN_FILE_PATH):
+        try:
+            df = pd.read_csv(WORKPLAN_FILE_PATH)
+            # Ensure 'Date' column is datetime
+            df['Date'] = pd.to_datetime(df['Date']).dt.date # Store as date only
+            return df
+        except Exception as e:
+            st.error(f"Error loading workplans: {e}")
+            return pd.DataFrame(columns=['Date', 'Field Team Member', 'Activity', 'Target', 'Achieved'])
+    return pd.DataFrame(columns=['Date', 'Field Team Member', 'Activity', 'Target', 'Achieved'])
+
+def save_workplans(df: pd.DataFrame):
+    """Saves daily workplans to a CSV file."""
+    try:
+        df.to_csv(WORKPLAN_FILE_PATH, index=False)
+        st.success("Workplan saved successfully!")
+    except Exception as e:
+        st.error(f"Error saving workplan: {e}")
+
+def get_admin_status():
+    """Checks admin status based on session state."""
+    return st.session_state.get('is_admin', False)
+
+# --- Existing Analysis and Target Generation Functions ---
 def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     """
     Analyzes BMC data against KPIs and identifies low-performing BMCs.
@@ -95,7 +165,7 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
         bmc_df['Date'] = pd.to_datetime(bmc_df['Date'])
         latest_bmc_df = bmc_df.loc[bmc_df.groupby('BMC_ID')['Date'].idxmax()]
     else:
-        latest_bmc_df = bmc_df.copy() 
+        latest_bmc_df = bmc_df.copy()
 
     low_performing_bmcs = {
         'Quality': pd.DataFrame(),
@@ -118,10 +188,10 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
 
     if 'Daily_Collection_Liters' in latest_bmc_df.columns and 'Capacity_Liters' in latest_bmc_df.columns:
         latest_bmc_df['Utilization_Percentage_Calculated'] = (
-                                                                       latest_bmc_df['Daily_Collection_Liters'] /
-                                                                       latest_bmc_df['Capacity_Liters']) * 100
+                                                                latest_bmc_df['Daily_Collection_Liters'] /
+                                                                latest_bmc_df['Capacity_Liters']) * 100
         
-        UTILIZATION_THRESHOLD = 70.0  
+        UTILIZATION_THRESHOLD = 70.0
         low_performing_bmcs['Utilization'] = latest_bmc_df[
             latest_bmc_df['Utilization_Percentage_Calculated'] < UTILIZATION_THRESHOLD]
         if not low_performing_bmcs['Utilization'].empty:
@@ -129,7 +199,7 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
 
     
     
-    ANIMAL_WELFARE_THRESHOLD = 4.0  
+    ANIMAL_WELFARE_THRESHOLD = 4.0
     if 'Animal_Welfare_Compliance_Score_BMC' in latest_bmc_df.columns:
         low_performing_bmcs['Animal_Welfare'] = latest_bmc_df[
             latest_bmc_df['Animal_Welfare_Compliance_Score_BMC'] < ANIMAL_WELFARE_THRESHOLD]
@@ -137,7 +207,7 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
             low_performing_bmcs['Animal_Welfare']['Reason'] = 'Low Animal Welfare Score'
 
     
-    WOMEN_EMPOWERMENT_THRESHOLD = 55.0  
+    WOMEN_EMPOWERMENT_THRESHOLD = 55.0
     if 'Women_Empowerment_Participation_Rate_BMC' in latest_bmc_df.columns:
         low_performing_bmcs['Women_Empowerment'] = latest_bmc_df[
             latest_bmc_df['Women_Empowerment_Participation_Rate_BMC'] < WOMEN_EMPOWERMENT_THRESHOLD]
@@ -157,7 +227,7 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
         if not df.empty:
             for index, row in df.iterrows():
                 bmc_id = row['BMC_ID']
-                district = row['District'] 
+                district = row['District']
 
                 if kpi == 'Quality':
                     current_fat = row.get('Quality_Fat_Percentage', 'N/A')
@@ -170,7 +240,7 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
                     )
                 elif kpi == 'Utilization':
                     current_util = row.get('Utilization_Percentage_Calculated', 'N/A')
-                    target_util = row.get('Utilization_Target_Percentage', '80')  
+                    target_util = row.get('Utilization_Target_Percentage', '80')
                     action_items.append(
                         f"BMC {bmc_id} (District: {district}) has **Low Utilization** ({current_util:.2f}%). "
                         f"**Action:** Identify reasons for low collection, farmer mobilization, improve logistics. "
@@ -193,14 +263,191 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
     return action_items
 
 
+# --- Main Application Logic ---
 farmer_df, bmc_df, field_team_df, training_df, summary_df = load_data()
 
-
+# Initialize session state for workplans if not already present
+if 'workplans_df' not in st.session_state:
+    st.session_state.workplans_df = load_workplans()
+if 'is_admin' not in st.session_state:
+    st.session_state.is_admin = False
 
 st.title("Ksheersagar Dairy Performance Dashboard & Workplan")
 st.markdown("---")
 
+# --- Admin Login Section ---
+st.sidebar.header("Admin Login")
+admin_input_password = st.sidebar.text_input("Admin Password", type="password")
+if admin_input_password == ADMIN_PASSWORD:
+    st.session_state.is_admin = True
+    st.sidebar.success("Admin access granted!")
+elif admin_input_password != "" and admin_input_password != ADMIN_PASSWORD:
+    st.session_state.is_admin = False
+    st.sidebar.error("Incorrect password.")
+else:
+    st.session_state.is_admin = False
 
+# --- Workplan Entry Section ---
+st.header("Daily Workplan Entry")
+st.markdown("---")
+
+with st.form("daily_workplan_form"):
+    col_date, col_member = st.columns(2)
+    with col_date:
+        workplan_date = st.date_input("Select Date", datetime.date.today())
+    with col_member:
+        selected_member = st.selectbox("Select Field Team Member", FIELD_TEAM_MEMBERS)
+
+    st.subheader(f"Workplan for {selected_member} on {workplan_date.strftime('%Y-%m-%d')}")
+
+    # Dictionary to store targets and achieved for each activity
+    current_targets = {}
+    current_achieved = {}
+
+    for activity in ACTIVITIES:
+        st.markdown(f"**{activity}**")
+        col_target, col_achieved = st.columns(2)
+        with col_target:
+            target_key = f"{selected_member}_{activity}_target_{workplan_date}"
+            # Pre-fill if existing data for this member, activity, date
+            existing_target = st.session_state.workplans_df.loc[
+                (st.session_state.workplans_df['Date'] == workplan_date) &
+                (st.session_state.workplans_df['Field Team Member'] == selected_member) &
+                (st.session_state.workplans_df['Activity'] == activity), 'Target'
+            ].values
+            default_target = int(existing_target[0]) if existing_target.size > 0 else 0
+            current_targets[activity] = st.number_input(f"Target for {activity}", min_value=0, value=default_target, key=target_key)
+        
+        with col_achieved:
+            achieved_key = f"{selected_member}_{activity}_achieved_{workplan_date}"
+            # Pre-fill if existing data
+            existing_achieved = st.session_state.workplans_df.loc[
+                (st.session_state.workplans_df['Date'] == workplan_date) &
+                (st.session_state.workplans_df['Field Team Member'] == selected_member) &
+                (st.session_state.workplans_df['Activity'] == activity), 'Achieved'
+            ].values
+            default_achieved = int(existing_achieved[0]) if existing_achieved.size > 0 else 0
+            
+            current_achieved[activity] = st.number_input(
+                f"Achieved for {activity}",
+                min_value=0,
+                value=default_achieved,
+                disabled=not get_admin_status(), # Disable if not admin
+                key=achieved_key
+            )
+            if not get_admin_status():
+                st.info("Admin login required to edit 'Achieved' values.")
+    
+    submitted = st.form_submit_button("Save Daily Workplan")
+    if submitted:
+        new_workplan_entries = []
+        for activity in ACTIVITIES:
+            new_workplan_entries.append({
+                'Date': workplan_date,
+                'Field Team Member': selected_member,
+                'Activity': activity,
+                'Target': current_targets[activity],
+                'Achieved': current_achieved[activity]
+            })
+        
+        new_workplan_df = pd.DataFrame(new_workplan_entries)
+
+        # Remove existing entries for the selected member and date to update
+        st.session_state.workplans_df = st.session_state.workplans_df[
+            ~((st.session_state.workplans_df['Date'] == workplan_date) &
+              (st.session_state.workplans_df['Field Team Member'] == selected_member))
+        ]
+        
+        # Concatenate the updated/new entries
+        st.session_state.workplans_df = pd.concat([st.session_state.workplans_df, new_workplan_df], ignore_index=True)
+        save_workplans(st.session_state.workplans_df)
+        st.rerun() # Rerun to refresh the display
+
+st.markdown("---")
+st.header("Workplan Tracking and Download")
+
+# Filter and display workplans
+display_date = st.date_input("View Workplans for Date", datetime.date.today(), key="display_date")
+
+filtered_workplans = st.session_state.workplans_df[
+    st.session_state.workplans_df['Date'] == display_date
+].sort_values(by=['Field Team Member', 'Activity'])
+
+if not filtered_workplans.empty:
+    st.subheader(f"Workplans for {display_date.strftime('%Y-%m-%d')}")
+    st.dataframe(filtered_workplans, use_container_width=True)
+else:
+    st.info(f"No workplans recorded for {display_date.strftime('%Y-%m-%d')}.")
+
+# Download options
+st.subheader("Download Workplan Data")
+
+col_download_daily, col_download_weekly, col_download_monthly = st.columns(3)
+
+with col_download_daily:
+    st.download_button(
+        label="Download Daily Workplans (CSV)",
+        data=st.session_state.workplans_df.to_csv(index=False).encode('utf-8'),
+        file_name="daily_workplans.csv",
+        mime="text/csv",
+    )
+
+with col_download_weekly:
+    st.markdown("#### Weekly Summary")
+    selected_week = st.date_input("Select a date in the week for weekly download", datetime.date.today(), key="weekly_date")
+    start_of_week = selected_week - datetime.timedelta(days=selected_week.weekday())
+    end_of_week = start_of_week + datetime.timedelta(days=6)
+    
+    weekly_data = st.session_state.workplans_df[
+        (st.session_state.workplans_df['Date'] >= start_of_week) &
+        (st.session_state.workplans_df['Date'] <= end_of_week)
+    ]
+    
+    if not weekly_data.empty:
+        weekly_summary = weekly_data.groupby(['Field Team Member', 'Activity']).agg(
+            Total_Target=('Target', 'sum'),
+            Total_Achieved=('Achieved', 'sum')
+        ).reset_index()
+        
+        csv = weekly_summary.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Weekly Summary (CSV)",
+            data=csv,
+            file_name=f"weekly_workplan_summary_{start_of_week.strftime('%Y%m%d')}_to_{end_of_week.strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+        )
+    else:
+        st.info("No data for this week.")
+
+with col_download_monthly:
+    st.markdown("#### Monthly Summary")
+    selected_month = st.date_input("Select a date in the month for monthly download", datetime.date.today(), key="monthly_date")
+    
+    monthly_data = st.session_state.workplans_df[
+        (st.session_state.workplans_df['Date'].apply(lambda x: x.month) == selected_month.month) &
+        (st.session_state.workplans_df['Date'].apply(lambda x: x.year) == selected_month.year)
+    ]
+    
+    if not monthly_data.empty:
+        monthly_summary = monthly_data.groupby(['Field Team Member', 'Activity']).agg(
+            Total_Target=('Target', 'sum'),
+            Total_Achieved=('Achieved', 'sum')
+        ).reset_index()
+        
+        csv = monthly_summary.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="Download Monthly Summary (CSV)",
+            data=csv,
+            file_name=f"monthly_workplan_summary_{selected_month.strftime('%Y%m')}.csv",
+            mime="text/csv",
+        )
+    else:
+        st.info("No data for this month.")
+
+st.markdown("---")
+
+
+# --- Existing Dashboard Sections (remaining code) ---
 st.header("Training Performance")
 st.markdown("---")
 
