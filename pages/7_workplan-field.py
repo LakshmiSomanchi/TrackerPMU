@@ -5,7 +5,9 @@ from io import StringIO
 from typing import Tuple, Dict, List
 import datetime
 
-# --- Constants and Fallback Data ---
+# --- Constants and Fallback Data (Rest of your constants remain the same) ---
+# ... (keep all your existing constants and fallback data here) ...
+
 # Ensure these file paths are correct relative to your script's location
 EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"
 GOVIND_FILE_PATH = "GovindCompiledReport_June.xlsx" # New Constant
@@ -120,13 +122,16 @@ def load_govind_bmc_data() -> pd.DataFrame:
                         'Quality_AB_Positive', 'Quality_Sulpha', 'Quality_Beta', 
                         'Quality_Capa', 'Quality_Aflatoxins']
         for col in numeric_cols:
-            govind_df[col] = pd.to_numeric(govind_df[col], errors='coerce')
+            if col in govind_df.columns: # Added check for column existence
+                govind_df[col] = pd.to_numeric(govind_df[col], errors='coerce')
             
         # Convert date column
-        govind_df['Date'] = pd.to_datetime(govind_df['Date'], errors='coerce')
+        if 'Date' in govind_df.columns: # Added check for column existence
+            govind_df['Date'] = pd.to_datetime(govind_df['Date'], errors='coerce')
         
         # Ensure BMC_ID is string
-        govind_df['BMC_ID'] = govind_df['BMC_ID'].astype(str)
+        if 'BMC_ID' in govind_df.columns: # Added check for column existence
+            govind_df['BMC_ID'] = govind_df['BMC_ID'].astype(str)
 
         st.success("Govind BMC data loaded!")
         return govind_df
@@ -156,7 +161,7 @@ def load_sddpl_bmc_data() -> pd.DataFrame:
 
         # Add placeholder columns if they don't exist in SDDPL but are needed for common BMC DF
         # Initialize with pd.NA and then fill as appropriate
-        common_cols = ['BMC_Name', 'Capacity_Liters', 'Utilization_Percentage_Calculated', 
+        common_cols = ['BMC_Name', 'Capacity_Liters', 'Utilization_Percentage_Calculated', # Keep this here to ensure it's a possible column for the combined DF
                         'Quality_Fat_Percentage', 'Quality_SNF_Percentage', 'Quality_Adulteration_Flag',
                         'Quality_CLR_Percentage', 'Quality_Sulpha', 'Quality_Beta', 'Quality_Capa']
         for col in common_cols:
@@ -176,13 +181,16 @@ def load_sddpl_bmc_data() -> pd.DataFrame:
         numeric_cols = ['Daily_Collection_Liters', 'Quality_Alcohol_Positive', 
                         'Quality_AB_Positive', 'Quality_Aflatoxins', 'Quality_MBRP']
         for col in numeric_cols:
-            sddpl_df[col] = pd.to_numeric(sddpl_df[col], errors='coerce')
+            if col in sddpl_df.columns: # Added check for column existence
+                sddpl_df[col] = pd.to_numeric(sddpl_df[col], errors='coerce')
         
         # Convert date column
-        sddpl_df['Date'] = pd.to_datetime(sddpl_df['Date'], errors='coerce')
+        if 'Date' in sddpl_df.columns: # Added check for column existence
+            sddpl_df['Date'] = pd.to_datetime(sddpl_df['Date'], errors='coerce')
         
         # Ensure BMC_ID is string
-        sddpl_df['BMC_ID'] = sddpl_df['BMC_ID'].astype(str)
+        if 'BMC_ID' in sddpl_df.columns: # Added check for column existence
+            sddpl_df['BMC_ID'] = sddpl_df['BMC_ID'].astype(str)
 
 
         st.success("SDDPL BMC data loaded!")
@@ -250,31 +258,44 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
         # Reindex each DataFrame to have all common columns, filling missing with pd.NA
         # This step is crucial to prevent Pandas from coercing mixed types (e.g., bool/int to object)
         # and to ensure proper alignment during concatenation.
-        for df_in_list in [bmc_df, govind_bmc_df, sddpl_bmc_df]:
-            for col in all_bmc_cols:
-                if col not in df_in_list.columns:
-                    df_in_list[col] = pd.NA 
-            # Reorder columns to match 'all_bmc_cols' set for consistent schema
-            df_in_list = df_in_list[list(all_bmc_cols)] 
+        
+        # Create a list of dataframes to process
+        dfs_to_process = [bmc_df, govind_bmc_df, sddpl_bmc_df]
+        processed_dfs = []
 
-        # Ensure 'Date' column is datetime before concatenation for proper sorting and latest entry selection
-        for df_in_list in [bmc_df, govind_bmc_df, sddpl_bmc_df]:
-            if 'Date' in df_in_list.columns:
-                df_in_list['Date'] = pd.to_datetime(df_in_list['Date'], errors='coerce')
-
+        for df_in_list in dfs_to_process:
+            if not df_in_list.empty:
+                # Add missing columns with pd.NA
+                for col in all_bmc_cols:
+                    if col not in df_in_list.columns:
+                        df_in_list[col] = pd.NA
+                # Reorder columns to match 'all_bmc_cols' set for consistent schema
+                df_in_list = df_in_list[list(all_bmc_cols)] 
+                # Ensure 'Date' column is datetime before concatenation
+                if 'Date' in df_in_list.columns:
+                    df_in_list['Date'] = pd.to_datetime(df_in_list['Date'], errors='coerce')
+                # Ensure BMC_ID is string
+                if 'BMC_ID' in df_in_list.columns:
+                    df_in_list['BMC_ID'] = df_in_list['BMC_ID'].astype(str)
+                processed_dfs.append(df_in_list)
+            
         # Concatenate all BMC data.
-        combined_bmc_df = pd.concat([bmc_df, govind_bmc_df, sddpl_bmc_df], ignore_index=True)
-        
-        # Drop duplicates, keeping the latest entry for each BMC_ID based on 'Date'
-        # Convert BMC_ID to string before dropping duplicates to ensure consistent type
-        combined_bmc_df['BMC_ID'] = combined_bmc_df['BMC_ID'].astype(str)
-        if 'Date' in combined_bmc_df.columns:
-            # Sort by Date descending to keep the latest
-            bmc_df = combined_bmc_df.sort_values(by='Date', ascending=False).drop_duplicates(subset='BMC_ID', keep='first')
+        # Ensure we only concatenate non-empty dataframes
+        if processed_dfs:
+            combined_bmc_df = pd.concat(processed_dfs, ignore_index=True)
         else:
-            # If no date column, just drop duplicates based on BMC_ID
-            bmc_df = combined_bmc_df.drop_duplicates(subset='BMC_ID', keep='first')
-        
+            combined_bmc_df = pd.DataFrame(columns=list(all_bmc_cols)) # Create an empty DF with all expected columns
+
+        # Drop duplicates, keeping the latest entry for each BMC_ID based on 'Date'
+        if 'BMC_ID' in combined_bmc_df.columns and not combined_bmc_df.empty:
+            if 'Date' in combined_bmc_df.columns and combined_bmc_df['Date'].notna().any(): # Check if 'Date' has non-NaN values
+                # Sort by Date descending to keep the latest
+                bmc_df = combined_bmc_df.sort_values(by='Date', ascending=False).drop_duplicates(subset='BMC_ID', keep='first')
+            else:
+                # If no meaningful date column, just drop duplicates based on BMC_ID
+                bmc_df = combined_bmc_df.drop_duplicates(subset='BMC_ID', keep='first')
+        else:
+            bmc_df = combined_bmc_df # If combined_bmc_df is empty or no BMC_ID, no duplicates to drop
 
         return farmer_df, bmc_df, field_team_df, training_df, summary_df
 
@@ -287,6 +308,16 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
             field_team_df = pd.read_csv(StringIO(FALLBACK_FIELD_TEAMS_CSV))
             training_df = pd.read_csv(StringIO(FALLBACK_TRAINING_DATA))
             summary_df = pd.read_csv(StringIO(SUMMARY_DATA))
+            
+            # Ensure fallback BMC_DF has 'Utilization_Percentage_Calculated' or relevant columns for analysis
+            if 'Daily_Collection_Liters' in bmc_df.columns and 'Capacity_Liters' in bmc_df.columns:
+                bmc_df['Daily_Collection_Liters'] = pd.to_numeric(bmc_df['Daily_Collection_Liters'], errors='coerce')
+                bmc_df['Capacity_Liters'] = pd.to_numeric(bmc_df['Capacity_Liters'], errors='coerce')
+                bmc_df['Utilization_Percentage_Calculated'] = (
+                    bmc_df['Daily_Collection_Liters'] / bmc_df['Capacity_Liters'].replace(0, pd.NA)
+                ) * 100
+                bmc_df['Effective_Utilization'] = bmc_df['Utilization_Percentage_Calculated'] # For dummy data, they are the same
+            
             st.warning("Could not load real data; using fallback dummy data.")
             return farmer_df, bmc_df, field_team_df, training_df, summary_df
         except Exception as e_fallback:
@@ -294,31 +325,9 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
             st.stop()
 
 
-# --- Workplan Data Handling Functions ---
-def load_workplans() -> pd.DataFrame:
-    """Loads daily workplans from a CSV file."""
-    if os.path.exists(WORKPLAN_FILE_PATH):
-        try:
-            df = pd.read_csv(WORKPLAN_FILE_PATH)
-            # Ensure 'Date' column is datetime
-            df['Date'] = pd.to_datetime(df['Date']).dt.date # Store as date only
-            return df
-        except Exception as e:
-            st.error(f"Error loading workplans: {e}")
-            return pd.DataFrame(columns=['Date', 'Field Team Member', 'Activity', 'Target', 'Achieved'])
-    return pd.DataFrame(columns=['Date', 'Field Team Member', 'Activity', 'Target', 'Achieved'])
+# --- Workplan Data Handling Functions (Rest of these functions remain the same) ---
+# ... (keep all your existing workplan functions here) ...
 
-def save_workplans(df: pd.DataFrame):
-    """Saves daily workplans to a CSV file."""
-    try:
-        df.to_csv(WORKPLAN_FILE_PATH, index=False)
-        st.success("Workplan saved successfully!")
-    except Exception as e:
-        st.error(f"Error saving workplan: {e}")
-
-def get_admin_status():
-    """Checks admin status based on session state."""
-    return st.session_state.get('is_admin', False)
 
 # --- Existing Analysis and Target Generation Functions (MODIFIED) ---
 def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
@@ -327,9 +336,9 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
     Returns a dictionary of low-performing BMCs for each KPI.
     """
     if 'Date' in bmc_df.columns:
-        bmc_df['Date'] = pd.to_datetime(bmc_df['Date'])
-        # Get the latest entry for each BMC_ID
-        latest_bmc_df = bmc_df.loc[bmc_df.groupby('BMC_ID')['Date'].idxmax()].copy() # .copy() to avoid SettingWithCopyWarning
+        bmc_df['Date'] = pd.to_datetime(bmc_df['Date'], errors='coerce') # Coerce errors to NaT
+        # Filter out rows where 'Date' is NaT before idxmax
+        latest_bmc_df = bmc_df.loc[bmc_df.dropna(subset=['Date']).groupby('BMC_ID')['Date'].idxmax()].copy()
     else:
         latest_bmc_df = bmc_df.copy()
 
@@ -365,7 +374,6 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
 
     # --- Volume Analysis ---
     if 'Daily_Collection_Liters' in latest_bmc_df.columns:
-        # Ensure column is numeric before comparison
         latest_bmc_df['Daily_Collection_Liters'] = pd.to_numeric(latest_bmc_df['Daily_Collection_Liters'], errors='coerce')
         low_volume_bmcs = latest_bmc_df[latest_bmc_df['Daily_Collection_Liters'] < VOLUME_THRESHOLD_LITERS]
         if not low_volume_bmcs.empty:
@@ -378,22 +386,24 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
         latest_bmc_df['Daily_Collection_Liters'] = pd.to_numeric(latest_bmc_df['Daily_Collection_Liters'], errors='coerce')
         latest_bmc_df['Capacity_Liters'] = pd.to_numeric(latest_bmc_df['Capacity_Liters'], errors='coerce')
 
-        # Calculate Utilization_Percentage_Calculated if not present or explicitly from Govind's 'Utilization'
-        # Handle division by zero for Capacity_Liters
+        # Calculate Calculated_Utilization if Capacity_Liters is not zero/NA
         latest_bmc_df['Calculated_Utilization'] = (
             latest_bmc_df['Daily_Collection_Liters'] / 
             latest_bmc_df['Capacity_Liters'].replace(0, pd.NA) # Replace 0 capacity with NA to avoid ZeroDivisionError
         ) * 100
         
-        # Prefer the provided Utilization_Percentage_Calculated if it exists and is not NA
-        # Otherwise, use the newly calculated one
-        latest_bmc_df['Effective_Utilization'] = latest_bmc_df['Utilization_Percentage_Calculated'].fillna(
-                                                 latest_bmc_df['Calculated_Utilization'])
+        # MODIFIED: Check for 'Utilization_Percentage_Calculated' existence before using it
+        if 'Utilization_Percentage_Calculated' in latest_bmc_df.columns:
+            latest_bmc_df['Effective_Utilization'] = latest_bmc_df['Utilization_Percentage_Calculated'].fillna(latest_bmc_df['Calculated_Utilization'])
+        else:
+            latest_bmc_df['Effective_Utilization'] = latest_bmc_df['Calculated_Utilization'] # If Govind's column isn't there, just use the calculated one
         
-        low_util_bmcs = latest_bmc_df[latest_bmc_df['Effective_Utilization'] < UTILIZATION_THRESHOLD]
-        if not low_util_bmcs.empty:
-            low_performing_bmcs['Utilization'] = low_util_bmcs.copy()
-            low_performing_bmcs['Utilization']['Reason'] = 'Low Utilization'
+        # Only proceed if 'Effective_Utilization' was successfully created and has valid numbers
+        if 'Effective_Utilization' in latest_bmc_df.columns and latest_bmc_df['Effective_Utilization'].notna().any():
+            low_util_bmcs = latest_bmc_df[latest_bmc_df['Effective_Utilization'] < UTILIZATION_THRESHOLD]
+            if not low_util_bmcs.empty:
+                low_performing_bmcs['Utilization'] = low_util_bmcs.copy()
+                low_performing_bmcs['Utilization']['Reason'] = 'Low Utilization'
 
 
     # --- Quality Analysis (General: Fat, SNF, Adulteration) ---
