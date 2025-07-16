@@ -7,6 +7,8 @@ import datetime
 
 # --- Constants and Fallback Data (existing code) ---
 EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"
+GOVIND_FILE_PATH = "GovindCompiledReport_June.xlsx" # New Constant
+SDDPL_FILE_PATH = "SDDPLCompiledReport_June.xlsx"   # New Constant
 
 FARMER_IDENTIFIER = "Farmer"
 BMC_IDENTIFIER = "BMC"
@@ -77,54 +79,200 @@ ACTIVITIES = [
     "Governance: Weekly/Monthly",
 ]
 
-# --- Existing Data Loading Functions ---
 st.set_page_config(layout="wide")
 
-@st.cache_data(show_spinner="Loading Ksheersagar data...")
-def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]: # Corrected line
-    """
-    Attempts to load data from an Excel file and split it into DataFrames, then falls back to embedded dummy CSV data.
-    """
+
+# --- New Data Loading Functions for Govind and SDDPL ---
+
+@st.cache_data(show_spinner="Loading Govind BMC data...")
+def load_govind_bmc_data() -> pd.DataFrame:
+    """Loads and processes Govind BMC data."""
     try:
-        all_data_df = pd.read_excel(EXCEL_FILE_PATH, sheet_name=None) # Load all sheets
+        govind_df = pd.read_excel(GOVIND_FILE_PATH)
+        # Rename columns to a standardized format (or create new ones)
+        govind_df.rename(columns={
+            'BMC Code': 'BMC_ID',
+            'MCC Name': 'BMC_Name',
+            'Milk Qty. (LTR)': 'Daily_Collection_Liters',
+            'Utilization': 'Utilization_Percentage_Calculated', # This is already a percentage
+            'FAT': 'Quality_Fat_Percentage',
+            'CLR': 'Quality_CLR_Percentage', # New column
+            'SNF': 'Quality_SNF_Percentage',
+            'Antibiotic Positive Qty': 'Quality_AB_Positive', # Assuming a measure of positive tests
+            'Sulpha': 'Quality_Sulpha',
+            'Beta': 'Quality_Beta', # Assuming Beta is MBRP in this context
+            'Capa': 'Quality_Capa',
+            'Afla': 'Quality_Aflatoxins',
+            'Date': 'Date'
+        }, inplace=True)
         
-        # Determine which sheet contains which identifier
-        farmer_sheet_name = None
-        bmc_sheet_name = None
-        field_team_sheet_name = None
-        training_sheet_name = None
+        # Add 'District' column if available or set a default/placeholder
+        if 'District' not in govind_df.columns:
+            govind_df['District'] = 'Unknown' # Placeholder, adjust if district can be derived
         
-        for sheet_name, df_sheet in all_data_df.items():
-            # Check for column names containing the identifier
-            if any(FARMER_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
-                farmer_sheet_name = sheet_name
-            if any(BMC_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
-                bmc_sheet_name = sheet_name
-            if any(FIELD_TEAM_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
-                field_team_sheet_name = sheet_name
-            if any(TRAINING_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
-                training_sheet_name = sheet_name
-        
-        farmer_df = all_data_df.get(farmer_sheet_name, pd.DataFrame())
-        bmc_df = all_data_df.get(bmc_sheet_name, pd.DataFrame())
-        field_team_df = all_data_df.get(field_team_sheet_name, pd.DataFrame())
-        training_df = all_data_df.get(training_sheet_name, pd.DataFrame())
-        
-        # Assuming summary data might be in the same training sheet or a separate one
-        # For now, let's assume if 'Total_Training' and 'No_of_Farmers' columns exist, it's summary_df
-        summary_df = pd.DataFrame()
-        if training_sheet_name:
-            if 'Total_Training' in all_data_df[training_sheet_name].columns and 'No_of_Farmers' in all_data_df[training_sheet_name].columns:
-                summary_df = all_data_df[training_sheet_name]
-            # If summary data is on a different sheet, you'd need to identify it similarly
+        # Add a source column
+        govind_df['Source'] = 'Govind'
+
+        # Convert relevant columns to numeric, coercing errors to NaN
+        numeric_cols = ['Daily_Collection_Liters', 'Utilization_Percentage_Calculated', 
+                        'Quality_Fat_Percentage', 'Quality_CLR_Percentage', 'Quality_SNF_Percentage',
+                        'Quality_AB_Positive', 'Quality_Sulpha', 'Quality_Beta', 
+                        'Quality_Capa', 'Quality_Aflatoxins']
+        for col in numeric_cols:
+            govind_df[col] = pd.to_numeric(govind_df[col], errors='coerce')
             
-        st.success("Data loaded and split from the Excel file!")
+        # Convert date column
+        govind_df['Date'] = pd.to_datetime(govind_df['Date'], errors='coerce')
+        
+        # Ensure BMC_ID is string
+        govind_df['BMC_ID'] = govind_df['BMC_ID'].astype(str)
+
+        st.success("Govind BMC data loaded!")
+        return govind_df
+    except FileNotFoundError:
+        st.warning(f"Govind BMC file not found: {GOVIND_FILE_PATH}")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error loading Govind BMC data: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(show_spinner="Loading SDDPL BMC data...")
+def load_sddpl_bmc_data() -> pd.DataFrame:
+    """Loads and processes SDDPL BMC data."""
+    try:
+        sddpl_df = pd.read_excel(SDDPL_FILE_PATH)
+        # Rename columns to a standardized format
+        sddpl_df.rename(columns={
+            'BMC': 'BMC_ID',
+            'Area': 'District', # Assuming Area maps to District
+            'Total Milk': 'Daily_Collection_Liters',
+            'Alcohol Positive': 'Quality_Alcohol_Positive',
+            'AB Positive Milk': 'Quality_AB_Positive',
+            'AFM1 Positive': 'Quality_Aflatoxins', # Assuming AFM1 refers to Aflatoxins
+            '4IN1 STRIP': 'Quality_MBRP', # Assuming 4IN1 STRIP refers to MBRP
+            'Date': 'Date'
+        }, inplace=True)
+
+        # Add placeholder columns if they don't exist in SDDPL but are needed for common BMC DF
+        # Initialize with NaN and then fill as appropriate
+        common_cols = ['BMC_Name', 'Capacity_Liters', 'Utilization_Percentage_Calculated', 
+                        'Quality_Fat_Percentage', 'Quality_SNF_Percentage', 'Quality_Adulteration_Flag',
+                        'Quality_CLR_Percentage', 'Quality_Sulpha', 'Quality_Beta', 'Quality_Capa']
+        for col in common_cols:
+            if col not in sddpl_df.columns:
+                sddpl_df[col] = pd.NA # Use pd.NA for missing values
+
+        # Fill specific SDDPL quality metrics if they are available
+        if 'BTS & CAP Negative Milk' in sddpl_df.columns:
+            # You might derive a positive/negative flag from this
+            sddpl_df['Quality_Adulteration_Flag'] = sddpl_df['BTS & CAP Negative Milk'].apply(lambda x: 'No' if x > 0 else 'Yes')
+        
+        # Add a source column
+        sddpl_df['Source'] = 'SDDPL'
+
+        # Convert relevant columns to numeric, coercing errors to NaN
+        numeric_cols = ['Daily_Collection_Liters', 'Quality_Alcohol_Positive', 
+                        'Quality_AB_Positive', 'Quality_Aflatoxins', 'Quality_MBRP']
+        for col in numeric_cols:
+            sddpl_df[col] = pd.to_numeric(sddpl_df[col], errors='coerce')
+        
+        # Convert date column
+        sddpl_df['Date'] = pd.to_datetime(sddpl_df['Date'], errors='coerce')
+        
+        # Ensure BMC_ID is string
+        sddpl_df['BMC_ID'] = sddpl_df['BMC_ID'].astype(str)
+
+
+        st.success("SDDPL BMC data loaded!")
+        return sddpl_df
+    except FileNotFoundError:
+        st.warning(f"SDDPL BMC file not found: {SDDPL_FILE_PATH}")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error loading SDDPL BMC data: {e}")
+        return pd.DataFrame()
+
+
+# --- Existing Data Loading Functions (MODIFIED) ---
+@st.cache_data(show_spinner="Loading Ksheersagar data...")
+def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Attempts to load data from Excel files and combine BMC data,
+    then falls back to embedded dummy CSV data.
+    """
+    farmer_df = pd.DataFrame()
+    bmc_df = pd.DataFrame()
+    field_team_df = pd.DataFrame()
+    training_df = pd.DataFrame()
+    summary_df = pd.DataFrame()
+
+    try:
+        # Load BMC data from Ksheersagar file if available
+        if os.path.exists(EXCEL_FILE_PATH):
+            all_data_df = pd.read_excel(EXCEL_FILE_PATH, sheet_name=None)
+            
+            farmer_sheet_name = None
+            bmc_sheet_name = None
+            field_team_sheet_name = None
+            training_sheet_name = None
+            
+            for sheet_name, df_sheet in all_data_df.items():
+                if any(FARMER_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
+                    farmer_sheet_name = sheet_name
+                if any(BMC_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
+                    bmc_sheet_name = sheet_name
+                if any(FIELD_TEAM_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
+                    field_team_sheet_name = sheet_name
+                if any(TRAINING_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
+                    training_sheet_name = sheet_name
+            
+            farmer_df = all_data_df.get(farmer_sheet_name, pd.DataFrame())
+            bmc_df = all_data_df.get(bmc_sheet_name, pd.DataFrame())
+            field_team_df = all_data_df.get(field_team_sheet_name, pd.DataFrame())
+            training_df = all_data_df.get(training_sheet_name, pd.DataFrame())
+            
+            if training_sheet_name:
+                if 'Total_Training' in all_data_df[training_sheet_name].columns and 'No_of_Farmers' in all_data_df[training_sheet_name].columns:
+                    summary_df = all_data_df[training_sheet_name]
+            
+            st.success("Ksheersagar data loaded!")
+            
+        # Load Govind and SDDPL BMC data
+        govind_bmc_df = load_govind_bmc_data()
+        sddpl_bmc_df = load_sddpl_bmc_data()
+
+        # Combine all BMC dataframes
+        # Standardize columns before concatenation
+        # Identify all unique columns across all BMC dataframes
+        all_bmc_cols = set(bmc_df.columns).union(set(govind_bmc_df.columns)).union(set(sddpl_bmc_df.columns))
+
+        # Reindex each DataFrame to have all common columns, filling missing with NaN
+        for df in [bmc_df, govind_bmc_df, sddpl_bmc_df]:
+            for col in all_bmc_cols:
+                if col not in df.columns:
+                    df[col] = pd.NA # Use pd.NA for better missing data handling
+
+        # Ensure 'Date' column is datetime before concatenation for proper sorting and latest entry selection
+        for df in [bmc_df, govind_bmc_df, sddpl_bmc_df]:
+            if 'Date' in df.columns:
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+
+        # Concatenate all BMC data. Prioritize latest date for a BMC_ID if duplicates across sources.
+        # It's crucial to align columns before concat
+        # Fill NA for 'BMC_ID' and 'BMC_Name' to avoid issues, though they should be present
+        bmc_df = pd.concat([bmc_df, govind_bmc_df, sddpl_bmc_df], ignore_index=True)
+        
+        # Drop duplicates, keeping the latest entry for each BMC_ID based on 'Date'
+        if 'Date' in bmc_df.columns:
+            bmc_df = bmc_df.sort_values(by='Date', ascending=False).drop_duplicates(subset='BMC_ID', keep='first')
+        
+        # Ensure BMC_ID is string for consistency
+        bmc_df['BMC_ID'] = bmc_df['BMC_ID'].astype(str)
+
         return farmer_df, bmc_df, field_team_df, training_df, summary_df
 
-    except FileNotFoundError:
-        st.warning("Excel file not found. Falling back to dummy data.")
     except Exception as e:
-        st.error(f"Error loading/splitting data from the Excel file: {e}. Falling back to dummy data.")
+        st.error(f"Error loading and combining data from Excel files: {e}. Falling back to dummy data.")
 
     try:
         farmer_df = pd.read_csv(StringIO(FALLBACK_FARMERS_CSV))
@@ -132,10 +280,12 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
         field_team_df = pd.read_csv(StringIO(FALLBACK_FIELD_TEAMS_CSV))
         training_df = pd.read_csv(StringIO(FALLBACK_TRAINING_DATA))
         summary_df = pd.read_csv(StringIO(SUMMARY_DATA))
+        st.warning("Excel file not found or error occurred. Falling back to dummy data.")
         return farmer_df, bmc_df, field_team_df, training_df, summary_df
     except Exception as e:
         st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
         st.stop()
+
 
 # --- Workplan Data Handling Functions ---
 def load_workplans() -> pd.DataFrame:
@@ -163,7 +313,7 @@ def get_admin_status():
     """Checks admin status based on session state."""
     return st.session_state.get('is_admin', False)
 
-# --- Existing Analysis and Target Generation Functions ---
+# --- Existing Analysis and Target Generation Functions (MODIFIED) ---
 def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     """
     Analyzes BMC data against KPIs and identifies low-performing BMCs.
@@ -171,55 +321,128 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
     """
     if 'Date' in bmc_df.columns:
         bmc_df['Date'] = pd.to_datetime(bmc_df['Date'])
+        # Get the latest entry for each BMC_ID
         latest_bmc_df = bmc_df.loc[bmc_df.groupby('BMC_ID')['Date'].idxmax()]
     else:
         latest_bmc_df = bmc_df.copy()
 
     low_performing_bmcs = {
-        'Quality': pd.DataFrame(),
+        'Volume': pd.DataFrame(), # New KPI for Volume
         'Utilization': pd.DataFrame(),
+        'Quality_General': pd.DataFrame(), # General quality issues (Fat, SNF, Adulteration)
+        'Quality_Alcohol': pd.DataFrame(),
+        'Quality_MBRP': pd.DataFrame(),
+        'Quality_Aflatoxins': pd.DataFrame(),
+        'Quality_AB_Positive': pd.DataFrame(),
+        'Quality_Sulpha': pd.DataFrame(),
+        'Quality_Capa': pd.DataFrame(),
         'Animal_Welfare': pd.DataFrame(),
         'Women_Empowerment': pd.DataFrame()
     }
 
+    # --- KPI THRESHOLDS (Adjust as needed) ---
     QUALITY_FAT_THRESHOLD = 3.5
     QUALITY_SNF_THRESHOLD = 7.8
+    UTILIZATION_THRESHOLD = 70.0
+    ANIMAL_WELFARE_THRESHOLD = 4.0
+    WOMEN_EMPOWERMENT_THRESHOLD = 55.0
+    VOLUME_THRESHOLD_LITERS = 500 # Example: BMCs collecting less than 500 liters daily
+    
+    # Quality specific thresholds (assuming 0 for negative results indicates good)
+    QUALITY_AB_POSITIVE_THRESHOLD = 0 # No positive tests allowed
+    QUALITY_SULPHA_THRESHOLD = 0
+    QUALITY_BETA_MBRP_THRESHOLD = 0 # Beta is used for MBRP in Govind, MBRP for SDDPL
+    QUALITY_CAPA_THRESHOLD = 0
+    QUALITY_AFLATOXINS_THRESHOLD = 0
+    QUALITY_ALCOHOL_POSITIVE_THRESHOLD = 0
 
-    low_quality_fat = latest_bmc_df[latest_bmc_df['Quality_Fat_Percentage'] < QUALITY_FAT_THRESHOLD]
-    low_quality_snf = latest_bmc_df[latest_bmc_df['Quality_SNF_Percentage'] < QUALITY_SNF_THRESHOLD]
-    adulteration_issues = latest_bmc_df[latest_bmc_df['Quality_Adulteration_Flag'].astype(str).str.lower() == 'yes']
+    # --- Volume Analysis ---
+    if 'Daily_Collection_Liters' in latest_bmc_df.columns:
+        low_volume_bmcs = latest_bmc_df[latest_bmc_df['Daily_Collection_Liters'] < VOLUME_THRESHOLD_LITERS]
+        if not low_volume_bmcs.empty:
+            low_performing_bmcs['Volume'] = low_volume_bmcs.copy()
+            low_performing_bmcs['Volume']['Reason'] = 'Low Milk Volume'
 
-    low_performing_bmcs['Quality'] = pd.concat([low_quality_fat, low_quality_snf, adulteration_issues]).drop_duplicates(
-        subset=['BMC_ID'])
-    if not low_performing_bmcs['Quality'].empty:
-        low_performing_bmcs['Quality']['Reason'] = 'Low Fat/SNF or Adulteration'
-
+    # --- Utilization Analysis ---
     if 'Daily_Collection_Liters' in latest_bmc_df.columns and 'Capacity_Liters' in latest_bmc_df.columns:
-        latest_bmc_df['Utilization_Percentage_Calculated'] = (
-                                                                latest_bmc_df['Daily_Collection_Liters'] /
-                                                                latest_bmc_df['Capacity_Liters']) * 100
+        # Calculate Utilization_Percentage_Calculated if not present or explicitly from Govind's 'Utilization'
+        latest_bmc_df['Calculated_Utilization'] = (
+            latest_bmc_df['Daily_Collection_Liters'] / latest_bmc_df['Capacity_Liters']) * 100
+        # Prefer the provided Utilization_Percentage_Calculated if it exists and is not NA
+        latest_bmc_df['Effective_Utilization'] = latest_bmc_df['Utilization_Percentage_Calculated'].fillna(
+                                                 latest_bmc_df['Calculated_Utilization'])
         
-        UTILIZATION_THRESHOLD = 70.0
-        low_performing_bmcs['Utilization'] = latest_bmc_df[
-            latest_bmc_df['Utilization_Percentage_Calculated'] < UTILIZATION_THRESHOLD]
-        if not low_performing_bmcs['Utilization'].empty:
+        low_util_bmcs = latest_bmc_df[latest_bmc_df['Effective_Utilization'] < UTILIZATION_THRESHOLD]
+        if not low_util_bmcs.empty:
+            low_performing_bmcs['Utilization'] = low_util_bmcs.copy()
             low_performing_bmcs['Utilization']['Reason'] = 'Low Utilization'
 
-    
-    
-    ANIMAL_WELFARE_THRESHOLD = 4.0
+
+    # --- Quality Analysis (General: Fat, SNF, Adulteration) ---
+    low_quality_fat = latest_bmc_df[latest_bmc_df['Quality_Fat_Percentage'] < QUALITY_FAT_THRESHOLD] if 'Quality_Fat_Percentage' in latest_bmc_df.columns else pd.DataFrame()
+    low_quality_snf = latest_bmc_df[latest_bmc_df['Quality_SNF_Percentage'] < QUALITY_SNF_THRESHOLD] if 'Quality_SNF_Percentage' in latest_bmc_df.columns else pd.DataFrame()
+    adulteration_issues = latest_bmc_df[latest_bmc_df['Quality_Adulteration_Flag'].astype(str).str.lower() == 'yes'] if 'Quality_Adulteration_Flag' in latest_bmc_df.columns else pd.DataFrame()
+
+    general_quality_issues = pd.concat([low_quality_fat, low_quality_snf, adulteration_issues]).drop_duplicates(subset=['BMC_ID'])
+    if not general_quality_issues.empty:
+        low_performing_bmcs['Quality_General'] = general_quality_issues
+        low_performing_bmcs['Quality_General']['Reason'] = 'Low Fat/SNF or Adulteration'
+
+    # --- New Quality Analysis (Alcohol/MBRP/Aflatoxins/AB Positive/Sulfa/Capa) ---
+    if 'Quality_Alcohol_Positive' in latest_bmc_df.columns:
+        low_alcohol = latest_bmc_df[latest_bmc_df['Quality_Alcohol_Positive'] > QUALITY_ALCOHOL_POSITIVE_THRESHOLD].copy()
+        if not low_alcohol.empty:
+            low_performing_bmcs['Quality_Alcohol'] = low_alcohol
+            low_performing_bmcs['Quality_Alcohol']['Reason'] = 'Alcohol Positive'
+
+    # MBRP (Beta from Govind, 4IN1 STRIP from SDDPL)
+    mbrp_issues = pd.DataFrame()
+    if 'Quality_Beta' in latest_bmc_df.columns: # From Govind
+        mbrp_issues = pd.concat([mbrp_issues, latest_bmc_df[latest_bmc_df['Quality_Beta'] > QUALITY_BETA_MBRP_THRESHOLD].copy()])
+    if 'Quality_MBRP' in latest_bmc_df.columns: # From SDDPL
+        mbrp_issues = pd.concat([mbrp_issues, latest_bmc_df[latest_bmc_df['Quality_MBRP'] > QUALITY_BETA_MBRP_THRESHOLD].copy()])
+    if not mbrp_issues.empty:
+        low_performing_bmcs['Quality_MBRP'] = mbrp_issues.drop_duplicates(subset=['BMC_ID'])
+        low_performing_bmcs['Quality_MBRP']['Reason'] = 'MBRP Positive'
+
+    if 'Quality_Aflatoxins' in latest_bmc_df.columns:
+        low_aflatoxins = latest_bmc_df[latest_bmc_df['Quality_Aflatoxins'] > QUALITY_AFLATOXINS_THRESHOLD].copy()
+        if not low_aflatoxins.empty:
+            low_performing_bmcs['Quality_Aflatoxins'] = low_aflatoxins
+            low_performing_bmcs['Quality_Aflatoxins']['Reason'] = 'Aflatoxins Positive'
+
+    if 'Quality_AB_Positive' in latest_bmc_df.columns:
+        low_ab_positive = latest_bmc_df[latest_bmc_df['Quality_AB_Positive'] > QUALITY_AB_POSITIVE_THRESHOLD].copy()
+        if not low_ab_positive.empty:
+            low_performing_bmcs['Quality_AB_Positive'] = low_ab_positive
+            low_performing_bmcs['Quality_AB_Positive']['Reason'] = 'Antibiotic Positive'
+
+    if 'Quality_Sulpha' in latest_bmc_df.columns:
+        low_sulpha = latest_bmc_df[latest_bmc_df['Quality_Sulpha'] > QUALITY_SULPHA_THRESHOLD].copy()
+        if not low_sulpha.empty:
+            low_performing_bmcs['Quality_Sulpha'] = low_sulpha
+            low_performing_bmcs['Quality_Sulpha']['Reason'] = 'Sulpha Positive'
+
+    if 'Quality_Capa' in latest_bmc_df.columns:
+        low_capa = latest_bmc_df[latest_bmc_df['Quality_Capa'] > QUALITY_CAPA_THRESHOLD].copy()
+        if not low_capa.empty:
+            low_performing_bmcs['Quality_Capa'] = low_capa
+            low_performing_bmcs['Quality_Capa']['Reason'] = 'Capa Positive'
+            
+    # --- Animal Welfare Analysis ---
     if 'Animal_Welfare_Compliance_Score_BMC' in latest_bmc_df.columns:
-        low_performing_bmcs['Animal_Welfare'] = latest_bmc_df[
+        low_animal_welfare = latest_bmc_df[
             latest_bmc_df['Animal_Welfare_Compliance_Score_BMC'] < ANIMAL_WELFARE_THRESHOLD]
-        if not low_performing_bmcs['Animal_Welfare'].empty:
+        if not low_animal_welfare.empty:
+            low_performing_bmcs['Animal_Welfare'] = low_animal_welfare.copy()
             low_performing_bmcs['Animal_Welfare']['Reason'] = 'Low Animal Welfare Score'
 
-    
-    WOMEN_EMPOWERMENT_THRESHOLD = 55.0
+    # --- Women Empowerment Analysis ---
     if 'Women_Empowerment_Participation_Rate_BMC' in latest_bmc_df.columns:
-        low_performing_bmcs['Women_Empowerment'] = latest_bmc_df[
+        low_women_empowerment = latest_bmc_df[
             latest_bmc_df['Women_Empowerment_Participation_Rate_BMC'] < WOMEN_EMPOWERMENT_THRESHOLD]
-        if not low_performing_bmcs['Women_Empowerment'].empty:
+        if not low_women_empowerment.empty:
+            low_performing_bmcs['Women_Empowerment'] = low_women_empowerment.copy()
             low_performing_bmcs['Women_Empowerment']['Reason'] = 'Low Women Empowerment Rate'
 
     return low_performing_bmcs
@@ -235,36 +458,52 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
         if not df.empty:
             for index, row in df.iterrows():
                 bmc_id = row['BMC_ID']
-                district = row['District']
+                bmc_name = row.get('BMC_Name', bmc_id) # Use name if available, else ID
+                district = row.get('District', 'N/A')
 
-                if kpi == 'Quality':
+                if kpi == 'Volume':
+                    current_volume = row.get('Daily_Collection_Liters', 'N/A')
+                    action_items.append(
+                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Low Milk Volume** ({current_volume} L). "
+                        f"**Action:** Field team to assess local farmer engagement and milk routes. "
+                        f"**Target:** Increase daily collection by 15% within 2 months."
+                    )
+                elif kpi == 'Utilization':
+                    current_util = row.get('Effective_Utilization', 'N/A') # Use Effective_Utilization
+                    target_util = row.get('Utilization_Target_Percentage', '80')
+                    action_items.append(
+                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Low Utilization** ({current_util:.2f}%). "
+                        f"**Action:** Identify reasons for low collection, farmer mobilization, improve logistics. "
+                        f"**Target:** Increase utilization to {target_util}% (or +5% points) within 2 months."
+                    )
+                elif kpi == 'Quality_General':
                     current_fat = row.get('Quality_Fat_Percentage', 'N/A')
                     current_snf = row.get('Quality_SNF_Percentage', 'N/A')
                     adulteration = row.get('Quality_Adulteration_Flag', 'N/A')
                     action_items.append(
-                        f"BMC {bmc_id} (District: {district}) has **Low Quality** (Fat: {current_fat}%, SNF: {current_snf}%, Adulteration: {adulteration}). "
-                        f"**Action:** Field team to visit for quality checks, farmer awareness on clean milk production. "
-                        f"**Target:** Increase Fat to >3.8% and SNF to >8.0% within 1 month."
+                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **General Low Quality** (Fat: {current_fat}%, SNF: {current_snf}%, Adulteration: {adulteration}). "
+                        f"**Action:** Field team to visit for comprehensive quality checks, farmer awareness on clean milk production, and testing protocols. "
+                        f"**Target:** Increase Fat to >3.8% and SNF to >8.0%, and eliminate adulteration within 1 month."
                     )
-                elif kpi == 'Utilization':
-                    current_util = row.get('Utilization_Percentage_Calculated', 'N/A')
-                    target_util = row.get('Utilization_Target_Percentage', '80')
+                elif kpi.startswith('Quality_') and kpi != 'Quality_General':
+                    quality_issue_type = kpi.split('_')[1].replace('Positive', 'Positive Milk').replace('MBRP', 'MBRP/Beta').replace('General','').strip()
+                    current_value = row.get(f'Quality_{quality_issue_type.replace(" Milk","").replace("/Beta","").replace("Alcohol","Alcohol_Positive").replace("MBRP","MBRP").replace("Aflatoxins","Aflatoxins").replace("Antibiotic","AB_Positive").replace("Sulpha","Sulpha").replace("Capa","Capa")}', 'N/A')
                     action_items.append(
-                        f"BMC {bmc_id} (District: {district}) has **Low Utilization** ({current_util:.2f}%). "
-                        f"**Action:** Identify reasons for low collection, farmer mobilization, improve logistics. "
-                        f"**Target:** Increase utilization to {target_util}% (or +5% points) within 2 months."
+                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **{quality_issue_type} Issues** (Value: {current_value}). "
+                        f"**Action:** Immediate investigation and training on feed quality, animal health, and milk handling. "
+                        f"**Target:** Eliminate {quality_issue_type} positive results within 2 weeks."
                     )
                 elif kpi == 'Animal_Welfare':
                     current_score = row.get('Animal_Welfare_Compliance_Score_BMC', 'N/A')
                     action_items.append(
-                        f"BMC {bmc_id} (District: {district}) has **Low Animal Welfare Score** ({current_score}). "
+                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Low Animal Welfare Score** ({current_score}). "
                         f"**Action:** Conduct farmer training on animal health, hygiene, and shelter. "
                         f"**Target:** Improve average animal welfare score to >4.5 within 3 months."
                     )
                 elif kpi == 'Women_Empowerment':
                     current_rate = row.get('Women_Empowerment_Participation_Rate_BMC', 'N/A')
                     action_items.append(
-                        f"BMC {bmc_id} (District: {district}) has **Low Women Empowerment Participation** ({current_rate:.2f}%). "
+                        f"BMC **{bmc_name}** ({bmc_id}, District: {district}) has **Low Women Empowerment Participation** ({current_rate:.2f}%). "
                         f"**Action:** Organize women's self-help group meetings, promote female farmer participation. "
                         f"**Target:** Increase women empowerment participation rate to >65% within 3 months."
                     )
@@ -492,8 +731,11 @@ with st.expander("Show Raw Data Previews"):
     st.subheader("Farmer Data")
     st.dataframe(farmer_df.head())
 
-    st.subheader("BMC Data")
+    st.subheader("Combined BMC Data (including Govind & SDDPL)")
     st.dataframe(bmc_df.head())
+    st.write(f"Total BMC records loaded: {len(bmc_df)}")
+    st.write(f"BMC data sources: {bmc_df['Source'].unique().tolist() if 'Source' in bmc_df.columns else 'N/A'}")
+
 
     st.subheader("Field Team & Training Data")
     st.dataframe(field_team_df.head())
@@ -508,7 +750,31 @@ if any(not df.empty for df in low_performing_bmcs.values()):
     for kpi, df in low_performing_bmcs.items():
         if not df.empty:
             st.write(f"#### {kpi.replace('_', ' ').title()} KPI Concerns:")
-            st.dataframe(df[['BMC_ID', 'BMC_Name', 'District', 'Reason']].set_index('BMC_ID'))
+            # Select relevant columns for display based on KPI
+            display_cols = ['BMC_ID', 'BMC_Name', 'District', 'Reason']
+            if 'Daily_Collection_Liters' in df.columns and kpi == 'Volume':
+                display_cols.append('Daily_Collection_Liters')
+            if 'Effective_Utilization' in df.columns and kpi == 'Utilization':
+                display_cols.append('Effective_Utilization')
+            if 'Quality_Fat_Percentage' in df.columns and 'Quality_SNF_Percentage' in df.columns and kpi == 'Quality_General':
+                display_cols.extend(['Quality_Fat_Percentage', 'Quality_SNF_Percentage', 'Quality_Adulteration_Flag'])
+            
+            # Add new quality columns if they exist in the dataframe for the specific KPI
+            if 'Quality_Alcohol_Positive' in df.columns and kpi == 'Quality_Alcohol':
+                display_cols.append('Quality_Alcohol_Positive')
+            if ('Quality_Beta' in df.columns or 'Quality_MBRP' in df.columns) and kpi == 'Quality_MBRP':
+                display_cols.extend([col for col in ['Quality_Beta', 'Quality_MBRP'] if col in df.columns])
+            if 'Quality_Aflatoxins' in df.columns and kpi == 'Quality_Aflatoxins':
+                display_cols.append('Quality_Aflatoxins')
+            if 'Quality_AB_Positive' in df.columns and kpi == 'Quality_AB_Positive':
+                display_cols.append('Quality_AB_Positive')
+            if 'Quality_Sulpha' in df.columns and kpi == 'Quality_Sulpha':
+                display_cols.append('Quality_Sulpha')
+            if 'Quality_Capa' in df.columns and kpi == 'Quality_Capa':
+                display_cols.append('Quality_Capa')
+
+
+            st.dataframe(df[[col for col in display_cols if col in df.columns]].set_index('BMC_ID'))
             st.markdown("---")
 else:
     st.success("All BMCs are performing well across the defined KPIs based on current data!")
