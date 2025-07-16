@@ -81,7 +81,7 @@ ACTIVITIES = [
 st.set_page_config(layout="wide")
 
 @st.cache_data(show_spinner="Loading Ksheersagar data...")
-def load_data() -> Tuple[pd.DataFrame, pd.RE_DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]: # Corrected line
     """
     Attempts to load data from an Excel file and split it into DataFrames, then falls back to embedded dummy CSV data.
     """
@@ -288,7 +288,6 @@ st.markdown("---")
 
 # --- Admin Login Section (UPDATED) ---
 st.sidebar.header("Admin Login")
-# Using a key to persist the input value across reruns
 admin_email_input = st.sidebar.text_input("Enter your admin email", value=st.session_state.admin_email_input)
 
 # Check if the input email is in the authorized list
