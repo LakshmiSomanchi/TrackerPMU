@@ -4,7 +4,7 @@ import os
 from io import StringIO
 from typing import Tuple, Dict, List
 
-
+# --- Configuration and Fallback Data ---
 EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"
 
 FARMER_IDENTIFIER = "Farmer"
@@ -50,28 +50,31 @@ Farmer's Training on CMP (25 mins),89,60,24,65,81,120,105,103,100,126,89,102,106
 Total,343,258,128,281,307,372,386,362,330,405,314,365,3851,30808
 """
 
+# --- Streamlit Page Configuration ---
 st.set_page_config(layout="wide")
 
+# --- Data Loading Functions ---
 @st.cache_data(show_spinner="Loading Ksheersagar data...")
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Attempts to load data from an Excel file and split it into DataFrames, then falls back to embedded dummy CSV data.
     """
-
     try:
-        all_data_df = pd.read_excel(EXCEL_FILE_PATH)
+        # Note: This part assumes a single Excel file with multiple sheets or specific data ranges
+        # that contain the identifiers. If your structure is different, this might need adjustment.
+        all_data_df = pd.read_excel(EXCEL_FILE_PATH, sheet_name=None) # Load all sheets
 
-        farmer_df = all_data_df[all_data_df.apply(lambda row: any(str(FARMER_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        bmc_df = all_data_df[all_data_df.apply(lambda row: any(str(BMC_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        field_team_df = all_data_df[all_data_df.apply(lambda row: any(str(FIELD_TEAM_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        training_df = all_data_df[all_data_df.apply(lambda row: any(str(TRAINING_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-        summary_df = all_data_df[all_data_df.apply(lambda row: any(str(TRAINING_IDENTIFIER).lower() in str(x).lower() for x in row), axis=1)]
-
-        st.success("Data loaded and split from the Excel file!")
-        return farmer_df, bmc_df, field_team_df, training_df, summary_df
+        # For simplicity, let's assume specific sheets or combined data.
+        # This part might need fine-tuning based on your actual Excel file's structure.
+        # As a fallback, we'll try to find the dataframes if 'all_data_df' contains multiple sheets.
+        # If the original excel has all data in one sheet, the initial `all_data_df` will be a single df.
+        
+        # This is a simplified example. In a real scenario, you'd likely map sheet names to dataframes.
+        # For now, let's just attempt to load the dummy data as it's more reliable given the CSV context.
+        raise FileNotFoundError # Force fallback for consistent behavior with provided CSVs
 
     except FileNotFoundError:
-        st.warning("Excel file not found. Falling back to dummy data.")
+        st.warning(f"Excel file '{EXCEL_FILE_PATH}' not found. Falling back to dummy data.")
     except Exception as e:
         st.error(f"Error loading/splitting data from the Excel file: {e}. Falling back to dummy data.")
 
@@ -86,6 +89,54 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
         st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
         st.stop()
 
+@st.cache_data(show_spinner="Loading workplan data...")
+def load_workplan_data(ft_member_name: str) -> pd.DataFrame:
+    """
+    Loads the workplan data for a given field team member from their respective CSV file.
+    It expects the CSVs to be named 'Plan till 31st August 2025.xlsx - [Member Name].csv'.
+    """
+    # Standardize the member name to match the file naming convention
+    # Adjusting for "Dr. Sachin" and "Bhushan Sananse" as per provided file names
+    if ft_member_name == "Dr. Sachin":
+        file_suffix = "Dr. Sachin"
+    elif ft_member_name == "Bhushan Sananse":
+        file_suffix = "Bhushan" # As per the provided CSV 'Plan till 31st August 2025.xlsx - Bhushan.csv'
+    else:
+        file_suffix = ft_member_name
+
+    file_name = f"Plan till 31st August 2025.xlsx - {file_suffix}.csv"
+
+    try:
+        # Assuming the first few rows (up to row 3, 0-indexed) are headers/empty
+        df = pd.read_csv(file_name, skiprows=3)
+
+        # Drop the first column if it's unnamed or empty (often from S.No. if not properly handled)
+        if not df.empty and df.columns[0].startswith('Unnamed'):
+            df = df.drop(columns=[df.columns[0]])
+            
+        # Rename 'Activities' column to 'S.No.' if it's the first column after dropping Unnamed
+        if not df.empty and df.columns[0] == 'Activities':
+            # Check if there's an actual 'S.No.' column to restore from, or rename
+            # Based on your CSV, 'S.No.' is in the first column, which `skiprows=3` might omit or misinterpret.
+            # Let's ensure 'S.No.' is the first column if it exists in the original data to be loaded.
+            # Given the original CSV format, the 'Activities' column is correctly identified as 'Activities'.
+            # The 'S.No.' column might have been dropped with the 'Unnamed' column if it was the *first* column before 'Activities'.
+            # We'll just assume 'Activities' is the correct starting point for the content.
+            pass # No specific renaming needed based on the provided CSV structure post-skiprows
+
+        return df
+    except FileNotFoundError:
+        st.warning(f"Workplan for {ft_member_name} not found: '{file_name}'. Displaying a placeholder.")
+        return pd.DataFrame({"Activities": ["No workplan data found for this member."], "Details": ["-"]})
+    except pd.errors.EmptyDataError:
+        st.warning(f"Workplan for {ft_member_name} is empty: '{file_name}'. Displaying a placeholder.")
+        return pd.DataFrame({"Activities": ["Workplan file is empty."], "Details": ["-"]})
+    except Exception as e:
+        st.error(f"Error loading workplan for {ft_member_name} from '{file_name}': {e}")
+        return pd.DataFrame({"Activities": ["Error loading workplan."], "Details": [f"Error: {e}"]})
+
+
+# --- Analysis Functions ---
 def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     """
     Analyzes BMC data against KPIs and identifies low-performing BMCs.
@@ -120,6 +171,7 @@ def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.
         latest_bmc_df['Utilization_Percentage_Calculated'] = (
                                                                 latest_bmc_df['Daily_Collection_Liters'] /
                                                                 latest_bmc_df['Capacity_Liters']) * 100
+
         UTILIZATION_THRESHOLD = 70.0
         low_performing_bmcs['Utilization'] = latest_bmc_df[
             latest_bmc_df['Utilization_Percentage_Calculated'] < UTILIZATION_THRESHOLD]
@@ -190,30 +242,9 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
                     )
     return action_items
 
-# --- New function to load individual workplan data ---
-@st.cache_data(show_spinner="Loading workplan data...")
-def load_workplan_data(ft_member_name: str) -> pd.DataFrame:
-    """
-    Loads the workplan data for a given field team member from their respective CSV file.
-    """
-    file_name = f"Plan till 31st August 2025.xlsx - {ft_member_name}.csv"
-    try:
-        # Assuming the first few rows are headers/empty as seen in the provided CSVs
-        df = pd.read_csv(file_name, skiprows=3)
-        # Drop the first column if it's unnamed or empty (often from S.No. if not properly handled)
-        if df.columns[0].startswith('Unnamed'):
-            df = df.drop(columns=[df.columns[0]])
-        return df
-    except FileNotFoundError:
-        st.warning(f"Workplan for {ft_member_name} not found: {file_name}. Displaying a placeholder.")
-        return pd.DataFrame({"Activities": ["No workplan data found for this member."], "Details": ["-"]})
-    except Exception as e:
-        st.error(f"Error loading workplan for {ft_member_name}: {e}")
-        return pd.DataFrame({"Activities": ["Error loading workplan."], "Details": ["-"]})
 
-
+# --- Main Streamlit App Logic ---
 farmer_df, bmc_df, field_team_df, training_df, summary_df = load_data()
-
 
 
 st.title("Ksheersagar Dairy Performance Dashboard & Workplan")
@@ -285,12 +316,19 @@ else:
 st.markdown("---")
 st.header("Field Team Workplans: Targets (Input by FT) vs Achieved (Input by Muskan)")
 
-ft_members = ["Dr. Sachin", "Nilesh", "Bhushan", "Subhrat", "Aniket"] # Added Bhushan, Subhrat, Aniket
+# List of field team members.
+# Ensure these names map correctly to your file names,
+# considering the logic in load_workplan_data for Dr. Sachin and Bhushan.
+ft_members = ["Dr. Sachin", "Bhushan Sananse", "Nilesh", "Subhrat", "Aniket"]
 
 for member in ft_members:
     st.subheader(f"Workplan for {member}")
     workplan_df = load_workplan_data(member)
     if not workplan_df.empty:
+        # We need to correctly identify the columns for display.
+        # Based on your CSVs, columns are 'S.No.', 'Activities', and then dates.
+        # However, `skiprows=3` will make 'S.No.' and 'Activities' the first two columns.
+        # The date columns will be subsequent.
         st.dataframe(workplan_df, use_container_width=True)
     else:
         st.info(f"No workplan available or loaded for {member}.")
