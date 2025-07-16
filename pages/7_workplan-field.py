@@ -5,9 +5,7 @@ from io import StringIO
 from typing import Tuple, Dict, List
 import datetime
 
-# --- Constants and Fallback Data (Rest of your constants remain the same) ---
-# ... (keep all your existing constants and fallback data here) ...
-
+# --- Constants and Fallback Data ---
 # Ensure these file paths are correct relative to your script's location
 EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"
 GOVIND_FILE_PATH = "GovindCompiledReport_June.xlsx" # New Constant
@@ -313,6 +311,7 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
             if 'Daily_Collection_Liters' in bmc_df.columns and 'Capacity_Liters' in bmc_df.columns:
                 bmc_df['Daily_Collection_Liters'] = pd.to_numeric(bmc_df['Daily_Collection_Liters'], errors='coerce')
                 bmc_df['Capacity_Liters'] = pd.to_numeric(bmc_df['Capacity_Liters'], errors='coerce')
+                # Only calculate if Capacity_Liters is not zero to avoid ZeroDivisionError
                 bmc_df['Utilization_Percentage_Calculated'] = (
                     bmc_df['Daily_Collection_Liters'] / bmc_df['Capacity_Liters'].replace(0, pd.NA)
                 ) * 100
@@ -325,9 +324,32 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
             st.stop()
 
 
-# --- Workplan Data Handling Functions (Rest of these functions remain the same) ---
-# ... (keep all your existing workplan functions here) ...
+# --- Workplan Data Handling Functions ---
+def load_workplans() -> pd.DataFrame:
+    """Loads daily workplans from a CSV file."""
+    if os.path.exists(WORKPLAN_FILE_PATH):
+        try:
+            df = pd.read_csv(WORKPLAN_FILE_PATH)
+            # Ensure 'Date' column is datetime
+            df['Date'] = pd.to_datetime(df['Date']).dt.date # Store as date only
+            return df
+        except Exception as e:
+            st.error(f"Error loading workplans: {e}")
+            return pd.DataFrame(columns=['Date', 'Field Team Member', 'Activity', 'Target', 'Achieved'])
+    return pd.DataFrame(columns=['Date', 'Field Team Member', 'Activity', 'Target', 'Achieved'])
 
+def save_workplans(df: pd.DataFrame):
+    """Saves daily workplans to a CSV file."""
+    try:
+        df.to_csv(WORKPLAN_FILE_PATH, index=False)
+        st.success("Workplan saved successfully!")
+    except Exception as e:
+        st.error(f"Error saving workplan: {e}")
+
+# MOVED: This function must be defined BEFORE it's called in the Streamlit UI.
+def get_admin_status():
+    """Checks admin status based on session state."""
+    return st.session_state.get('is_admin', False)
 
 # --- Existing Analysis and Target Generation Functions (MODIFIED) ---
 def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
