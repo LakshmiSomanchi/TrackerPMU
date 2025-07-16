@@ -51,9 +51,16 @@ Farmer's Training on CMP (25 mins),89,60,24,65,81,120,105,103,100,126,89,102,106
 Total,343,258,128,281,307,372,386,362,330,405,314,365,3851,30808
 """
 
-# --- NEW: Workplan specific constants and data storage ---
+# --- Workplan specific constants and data storage ---
 WORKPLAN_FILE_PATH = "daily_workplans.csv"
-ADMIN_PASSWORD = "admin" # Simple password for demonstration
+
+# --- UPDATED: Admin Authorized Emails ---
+AUTHORIZED_ADMIN_EMAILS = [
+    "mkaushal@tns.org",
+    "rsomanchi@tns.org",
+    "ksuneha@tns.org",
+    "shifalis@tns.org"
+]
 
 FIELD_TEAM_MEMBERS = [
     "Dr. Sachin Wadapalliwar",
@@ -74,7 +81,7 @@ ACTIVITIES = [
 st.set_page_config(layout="wide")
 
 @st.cache_data(show_spinner="Loading Ksheersagar data...")
-def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def load_data() -> Tuple[pd.DataFrame, pd.RE_DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Attempts to load data from an Excel file and split it into DataFrames, then falls back to embedded dummy CSV data.
     """
@@ -88,13 +95,14 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
         training_sheet_name = None
         
         for sheet_name, df_sheet in all_data_df.items():
-            if any(FARMER_IDENTIFIER.lower() in str(x).lower() for x in df_sheet.columns):
+            # Check for column names containing the identifier
+            if any(FARMER_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
                 farmer_sheet_name = sheet_name
-            if any(BMC_IDENTIFIER.lower() in str(x).lower() for x in df_sheet.columns):
+            if any(BMC_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
                 bmc_sheet_name = sheet_name
-            if any(FIELD_TEAM_IDENTIFIER.lower() in str(x).lower() for x in df_sheet.columns):
+            if any(FIELD_TEAM_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
                 field_team_sheet_name = sheet_name
-            if any(TRAINING_IDENTIFIER.lower() in str(x).lower() for x in df_sheet.columns):
+            if any(TRAINING_IDENTIFIER.lower() in str(col).lower() for col in df_sheet.columns):
                 training_sheet_name = sheet_name
         
         farmer_df = all_data_df.get(farmer_sheet_name, pd.DataFrame())
@@ -129,7 +137,7 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
         st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
         st.stop()
 
-# --- NEW: Workplan Data Handling Functions ---
+# --- Workplan Data Handling Functions ---
 def load_workplans() -> pd.DataFrame:
     """Loads daily workplans from a CSV file."""
     if os.path.exists(WORKPLAN_FILE_PATH):
@@ -271,21 +279,30 @@ if 'workplans_df' not in st.session_state:
     st.session_state.workplans_df = load_workplans()
 if 'is_admin' not in st.session_state:
     st.session_state.is_admin = False
+if 'admin_email_input' not in st.session_state:
+    st.session_state.admin_email_input = ""
+
 
 st.title("Ksheersagar Dairy Performance Dashboard & Workplan")
 st.markdown("---")
 
-# --- Admin Login Section ---
+# --- Admin Login Section (UPDATED) ---
 st.sidebar.header("Admin Login")
-admin_input_password = st.sidebar.text_input("Admin Password", type="password")
-if admin_input_password == ADMIN_PASSWORD:
-    st.session_state.is_admin = True
-    st.sidebar.success("Admin access granted!")
-elif admin_input_password != "" and admin_input_password != ADMIN_PASSWORD:
-    st.session_state.is_admin = False
-    st.sidebar.error("Incorrect password.")
+# Using a key to persist the input value across reruns
+admin_email_input = st.sidebar.text_input("Enter your admin email", value=st.session_state.admin_email_input)
+
+# Check if the input email is in the authorized list
+if admin_email_input:
+    st.session_state.admin_email_input = admin_email_input # Store in session state
+    if admin_email_input.lower() in [email.lower() for email in AUTHORIZED_ADMIN_EMAILS]:
+        st.session_state.is_admin = True
+        st.sidebar.success(f"Admin access granted for {admin_email_input}!")
+    else:
+        st.session_state.is_admin = False
+        st.sidebar.error("Unauthorized email address.")
 else:
     st.session_state.is_admin = False
+
 
 # --- Workplan Entry Section ---
 st.header("Daily Workplan Entry")
@@ -307,26 +324,22 @@ with st.form("daily_workplan_form"):
     for activity in ACTIVITIES:
         st.markdown(f"**{activity}**")
         col_target, col_achieved = st.columns(2)
+        
+        # Filter for existing data for this specific activity, member, and date
+        existing_entry = st.session_state.workplans_df.loc[
+            (st.session_state.workplans_df['Date'] == workplan_date) &
+            (st.session_state.workplans_df['Field Team Member'] == selected_member) &
+            (st.session_state.workplans_df['Activity'] == activity)
+        ]
+
         with col_target:
             target_key = f"{selected_member}_{activity}_target_{workplan_date}"
-            # Pre-fill if existing data for this member, activity, date
-            existing_target = st.session_state.workplans_df.loc[
-                (st.session_state.workplans_df['Date'] == workplan_date) &
-                (st.session_state.workplans_df['Field Team Member'] == selected_member) &
-                (st.session_state.workplans_df['Activity'] == activity), 'Target'
-            ].values
-            default_target = int(existing_target[0]) if existing_target.size > 0 else 0
+            default_target = int(existing_entry['Target'].iloc[0]) if not existing_entry.empty else 0
             current_targets[activity] = st.number_input(f"Target for {activity}", min_value=0, value=default_target, key=target_key)
         
         with col_achieved:
             achieved_key = f"{selected_member}_{activity}_achieved_{workplan_date}"
-            # Pre-fill if existing data
-            existing_achieved = st.session_state.workplans_df.loc[
-                (st.session_state.workplans_df['Date'] == workplan_date) &
-                (st.session_state.workplans_df['Field Team Member'] == selected_member) &
-                (st.session_state.workplans_df['Activity'] == activity), 'Achieved'
-            ].values
-            default_achieved = int(existing_achieved[0]) if existing_achieved.size > 0 else 0
+            default_achieved = int(existing_entry['Achieved'].iloc[0]) if not existing_entry.empty else 0
             
             current_achieved[activity] = st.number_input(
                 f"Achieved for {activity}",
@@ -423,6 +436,7 @@ with col_download_monthly:
     st.markdown("#### Monthly Summary")
     selected_month = st.date_input("Select a date in the month for monthly download", datetime.date.today(), key="monthly_date")
     
+    # Ensure the 'Date' column is treated as datetime objects for month/year comparison
     monthly_data = st.session_state.workplans_df[
         (st.session_state.workplans_df['Date'].apply(lambda x: x.month) == selected_month.month) &
         (st.session_state.workplans_df['Date'].apply(lambda x: x.year) == selected_month.year)
