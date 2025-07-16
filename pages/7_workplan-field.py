@@ -6,14 +6,18 @@ from typing import Tuple, Dict, List
 import datetime
 
 # --- Configuration and Fallback Data ---
+# Path to your main Excel file (currently set to trigger fallback for CSV consistency)
 EXCEL_FILE_PATH = "KSHEERSAGAR LTD File.xlsx"
-DAILY_WORKPLAN_CSV = "daily_workplans.csv" # CSV for daily inputs
+# CSV file for storing dynamic daily workplan inputs
+DAILY_WORKPLAN_CSV = "daily_workplans.csv"
 
+# Identifiers for different data sections within a hypothetical larger Excel file
 FARMER_IDENTIFIER = "Farmer"
 BMC_IDENTIFIER = "BMC"
 FIELD_TEAM_IDENTIFIER = "FieldTeam"
 TRAINING_IDENTIFIER = "Training"
 
+# Fallback CSV data for various sections if Excel file is not found or fails to load
 FALLBACK_FARMERS_CSV = """
 Farmer_ID,Farmer_Name,Village,District,BMC_ID,Milk_Production_Liters_Daily,Cattle_Count,Women_Empowerment_Flag,Animal_Welfare_Score
 F001,Rajesh Kumar,Nandgaon,Pune,BMC001,15,5,No,4
@@ -52,29 +56,44 @@ Farmer's Training on CMP (25 mins),89,60,24,65,81,120,105,103,100,126,89,102,106
 Total,343,258,128,281,307,372,386,362,330,405,314,365,3851,30808
 """
 
-# Define field team members (ensure these match your file naming convention)
+# Define field team members (ensure these names match your file naming convention for static workplans)
 FT_MEMBERS = ["Dr. Sachin", "Bhushan Sananse", "Nilesh", "Subhrat", "Aniket"]
-ADMIN_PASSWORD = "admin" # Simple admin password for demonstration
-
+ADMIN_PASSWORD = "admin" # Simple admin password for demonstration purposes
 
 # --- Streamlit Page Configuration ---
 st.set_page_config(layout="wide")
 
 # --- Data Loading Functions ---
-@st.cache_data(show_spinner="Loading Ksheersagar data...")
+
+@st.cache_data(show_spinner="Loading Ksheersagar main data...")
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
-    Attempts to load data from an Excel file and split it into DataFrames, then falls back to embedded dummy CSV data.
+    Attempts to load data from an Excel file. If not found or error, falls back to embedded dummy CSV data.
     """
     try:
-        # For consistent behavior with provided CSVs, we'll force fallback.
-        raise FileNotFoundError # Force fallback for consistent behavior with provided CSVs
+        # This section is commented out/modified to consistently use fallback CSVs
+        # as per previous interactions, ensuring the app runs without a specific Excel file.
+        # If you have a specific KSHEERSAGAR LTD File.xlsx with these sections,
+        # you'll need to adapt this parsing to read from its sheets/ranges.
+        # For now, we force the fallback:
+        raise FileNotFoundError # Forces the app to use the FALLBACK_..._CSV data
+        
+        # Example of how you might load from an actual Excel with multiple sheets:
+        # all_excel_data = pd.read_excel(EXCEL_FILE_PATH, sheet_name=None)
+        # farmer_df = all_excel_data.get("Farmers_Sheet_Name", pd.DataFrame()) # Replace "Farmers_Sheet_Name"
+        # bmc_df = all_excel_data.get("BMCs_Sheet_Name", pd.DataFrame())
+        # field_team_df = all_excel_data.get("FieldTeams_Sheet_Name", pd.DataFrame())
+        # training_df = all_excel_data.get("Training_Sheet_Name", pd.DataFrame())
+        # summary_df = all_excel_data.get("Summary_Sheet_Name", pd.DataFrame())
+        # st.success("Data loaded and split from the Excel file!")
+        # return farmer_df, bmc_df, field_team_df, training_df, summary_df
 
     except FileNotFoundError:
-        st.warning(f"Excel file '{EXCEL_FILE_PATH}' not found. Falling back to dummy data.")
+        st.warning(f"Main Excel file '{EXCEL_FILE_PATH}' not found. Falling back to dummy data.")
     except Exception as e:
         st.error(f"Error loading/splitting data from the Excel file: {e}. Falling back to dummy data.")
 
+    # Fallback to in-memory CSV data if Excel loading fails or is skipped
     try:
         farmer_df = pd.read_csv(StringIO(FALLBACK_FARMERS_CSV))
         bmc_df = pd.read_csv(StringIO(FALLBACK_BMCS_CSV))
@@ -86,64 +105,65 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame,
         st.error(f"Critical error: Could not load even fallback dummy data. Error: {e}")
         st.stop()
 
-@st.cache_data(show_spinner="Loading workplan data...")
+@st.cache_data(show_spinner="Loading monthly workplan data...")
 def load_monthly_workplan_data(ft_member_name: str) -> pd.DataFrame:
     """
     Loads the monthly workplan data for a given field team member from their respective CSV file.
-    Handles the multi-level header structure.
-    Returns a DataFrame with 'Activities' and columns for each day (e.g., 'Jul_16', 'Aug_01').
+    It expects the CSVs to be named 'Plan till 31st August 2025.xlsx - [Member Name].csv'.
+    Handles the multi-level header structure (e.g., 'July' over '16', '17').
+    Returns a DataFrame with 'Activity' and flattened date columns (e.g., 'July_16', 'August_01').
     """
     # Standardize the member name to match the file naming convention
+    # Adjusting for "Dr. Sachin" and "Bhushan Sananse" as per provided file names
     if ft_member_name == "Dr. Sachin":
         file_suffix = "Dr. Sachin"
     elif ft_member_name == "Bhushan Sananse":
-        file_suffix = "Bhushan" # As per the provided CSV 'Plan till 31st August 2025.xlsx - Bhushan.csv'
+        file_suffix = "Bhushan" # Based on 'Plan till 31st August 2025.xlsx - Bhushan.csv'
     else:
         file_suffix = ft_member_name
 
     file_name = f"Plan till 31st August 2025.xlsx - {file_suffix}.csv"
 
     try:
-        # Read the first two rows as headers, then the rest of the data
-        df = pd.read_csv(file_name, header=[2, 3]) # Reads headers from row 2 (0-indexed) and row 3
+        # Read the first two rows as headers (0-indexed: row 2 and row 3 in the CSV)
+        df = pd.read_csv(file_name, header=[2, 3])
 
-        # Drop the first 'Unnamed' column if it exists (from S.No.)
+        # Clean up columns: Remove the initial 'S.No.' column which often becomes Unnamed
+        # and flatten multi-index columns for easier access.
         if isinstance(df.columns, pd.MultiIndex):
-            # Check if the first level 0 column is 'Unnamed' and level 1 is also 'Unnamed'
-            if 'Unnamed: 0_level_0' in df.columns.levels[0] and 'Unnamed: 0_level_1' in df.columns.levels[1]:
-                 df = df.droplevel(0, axis=1) # Drop the top-level Unnamed
-                 df = df.drop(columns='Unnamed: 0_level_1') # Drop the second-level Unnamed (which was the S.No.)
-            elif df.columns[0][0].startswith('Unnamed') and df.columns[0][1].startswith('Unnamed'):
-                df = df.iloc[:, 1:] # Drop the first column if it's unnamed (S.No.)
-        elif df.columns[0].startswith('Unnamed'):
-            df = df.iloc[:, 1:]
+            new_columns = []
+            for col_idx, (level0, level1) in enumerate(df.columns):
+                # Skip the first column if it's 'Unnamed' at both levels (likely 'S.No.')
+                if col_idx == 0 and (level0.startswith('Unnamed') or pd.isna(level0)) and (level1.startswith('Unnamed') or pd.isna(level1)):
+                    continue
+                
+                # Clean up month and day names
+                month = str(level0).strip().replace(',', '').replace(' ', '_') if pd.notna(level0) else ''
+                day = str(level1).strip() if pd.notna(level1) else ''
 
-        # Create flattened column names like 'July_16', 'July_17', 'August_1'
-        new_columns = []
-        for col_tuple in df.columns:
-            if isinstance(col_tuple, tuple) and len(col_tuple) == 2:
-                # Handle cases where month header might be empty string or NaN for the first column
-                month = col_tuple[0].strip() if pd.notna(col_tuple[0]) else ''
-                day = col_tuple[1].strip() if pd.notna(col_tuple[1]) else ''
-
-                if month and day: # Both month and day are present
-                    new_columns.append(f"{month.replace(',', '').replace(' ', '_')}_{day}")
-                elif not month and day: # Only day is present (e.g., for 'Activities' column)
+                if month and day:
+                    # Format day with leading zero if single digit for August for consistency
+                    if month.lower() == 'august' and day.isdigit():
+                        day = str(int(day)).zfill(2)
+                    new_columns.append(f"{month}_{day}")
+                elif day: # This might be the 'Activities' column if it didn't get a top-level header
                     new_columns.append(day)
-                else: # Fallback for unexpected empty multi-index parts
-                    new_columns.append("_".join(str(c) for c in col_tuple))
-            else: # Single-level column (e.g., 'Activities' if it came through as such)
-                new_columns.append(col_tuple)
-        
-        df.columns = new_columns
+                else: # Fallback for unexpected empty or strange multi-index parts
+                    new_columns.append(f"col_{col_idx}") # Unique name to avoid conflicts
 
-        # Rename the 'Activities' column properly
+            df.columns = new_columns
+        else: # Handle case where it might not be multi-index (e.g., if skiprows was different)
+            if df.columns[0].startswith('Unnamed'):
+                df = df.iloc[:, 1:] # Drop the first column if it's unnamed
+
+        # Rename 'Activities' column to 'Activity' for consistency
         if 'Activities' in df.columns:
             df = df.rename(columns={'Activities': 'Activity'})
         
-        # Ensure 'Activity' is the first column for consistent display
-        cols = ['Activity'] + [col for col in df.columns if col != 'Activity']
-        df = df[cols]
+        # Ensure 'Activity' is the first column if it exists
+        if 'Activity' in df.columns:
+            cols = ['Activity'] + [col for col in df.columns if col != 'Activity']
+            df = df[cols]
 
         return df
     except FileNotFoundError:
@@ -156,28 +176,27 @@ def load_monthly_workplan_data(ft_member_name: str) -> pd.DataFrame:
         st.error(f"Error loading monthly workplan for {ft_member_name} from '{file_name}': {e}")
         return pd.DataFrame({"Activity": ["Error loading monthly workplan."], "Details": [f"Error: {e}"]})
 
-# NEW: Load/Initialize daily workplans CSV
 @st.cache_resource
 def load_daily_workplans() -> pd.DataFrame:
     """Loads or initializes the daily workplans CSV."""
     if os.path.exists(DAILY_WORKPLAN_CSV):
         df = pd.read_csv(DAILY_WORKPLAN_CSV)
-        # Ensure 'Date' column is datetime
+        # Ensure 'Date' column is datetime object for proper handling
         df['Date'] = pd.to_datetime(df['Date'])
         return df
     else:
-        # Create an empty DataFrame with required columns
+        # Create an empty DataFrame with required columns if file doesn't exist
         df = pd.DataFrame(columns=["Date", "FT_Member", "Activity", "Target", "Achieved", "Timestamp"])
-        df.to_csv(DAILY_WORKPLAN_CSV, index=False) # Save empty DataFrame
+        # Save the empty DataFrame to create the CSV file
+        df.to_csv(DAILY_WORKPLAN_CSV, index=False)
         return df
 
-# NEW: Save daily workplans to CSV
 def save_daily_workplans(df: pd.DataFrame):
     """Saves the daily workplans DataFrame to CSV."""
     df.to_csv(DAILY_WORKPLAN_CSV, index=False)
 
 
-# --- Analysis Functions (Unchanged) ---
+# --- Analysis Functions (Unchanged from previous versions) ---
 def analyze_bmcs(bmc_df: pd.DataFrame, farmer_df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
     """
     Analyzes BMC data against KPIs and identifies low-performing BMCs.
@@ -284,10 +303,11 @@ def generate_actionable_targets(low_bmcs_dict: Dict[str, pd.DataFrame]) -> List[
     return action_items
 
 
-# --- Main Streamlit App Logic ---
-farmer_df, bmc_df, field_team_df, training_df, summary_df = load_data()
-daily_workplans_df = load_daily_workplans() # Load the daily workplans dataframe
+# --- Main Streamlit App Execution ---
 
+# Load main data and daily workplans on app start
+farmer_df, bmc_df, field_team_df, training_df, summary_df = load_data()
+daily_workplans_df = load_daily_workplans()
 
 st.title("Ksheersagar Dairy Performance Dashboard & Workplan")
 st.markdown("---")
@@ -325,19 +345,19 @@ if user_role == "Field Team Member":
         if submitted_workplan:
             if ft_member and plan_date and activity and target:
                 new_entry = {
-                    "Date": plan_date.strftime('%Y-%m-%d'), # Store date as string for CSV
+                    "Date": plan_date.strftime('%Y-%m-%d'), # Store date as string for CSV persistence
                     "FT_Member": ft_member,
                     "Activity": activity,
                     "Target": target,
-                    "Achieved": "", # Empty for field team to fill
-                    "Timestamp": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    "Achieved": "", # Initially empty, to be filled by admin
+                    "Timestamp": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S') # Record submission time
                 }
-                # Use pd.concat for adding a new row
+                # Add the new entry to the DataFrame
                 global daily_workplans_df
                 daily_workplans_df = pd.concat([daily_workplans_df, pd.DataFrame([new_entry])], ignore_index=True)
-                save_daily_workplans(daily_workplans_df)
+                save_daily_workplans(daily_workplans_df) # Save changes to CSV
                 st.success("Daily workplan submitted successfully!")
-                st.rerun() # Rerun to refresh the displayed data
+                st.rerun() # Rerun to refresh the displayed data immediately
             else:
                 st.error("Please fill in all fields for the daily workplan.")
 
@@ -346,13 +366,13 @@ if is_admin:
     st.header("Admin: Update Achieved Values")
     st.markdown("Select a workplan entry and input the achieved value.")
 
-    # Filter for entries where 'Achieved' is not yet filled
+    # Filter for entries where 'Achieved' is not yet filled (or is an empty string)
     unachieved_entries = daily_workplans_df[daily_workplans_df['Achieved'] == ""].copy()
 
     if unachieved_entries.empty:
         st.info("No unachieved daily workplan entries to update.")
     else:
-        # Display editable table for admin
+        # Display the unachieved entries in a read-only table for context
         st.dataframe(
             unachieved_entries,
             column_config={
@@ -360,76 +380,76 @@ if is_admin:
                 "FT_Member": "Field Team Member",
                 "Activity": "Activity",
                 "Target": "Target",
-                "Achieved": st.column_config.TextColumn("Achieved", required=True),
-                "Timestamp": st.column_config.DatetimeColumn("Timestamp", format="YYYY-MM-DD HH:mm:ss")
+                "Achieved": st.column_config.TextColumn("Achieved (Current)"), # Show current empty state
+                "Timestamp": st.column_config.DatetimeColumn("Submitted On", format="YYYY-MM-DD HH:mm:ss")
             },
             hide_row_index=True,
             use_container_width=True,
-            key="admin_achieved_editor",
-            num_rows="dynamic" # Allows adding/deleting rows (though we only want to edit 'Achieved')
+            key="admin_unachieved_display" # Use a distinct key
         )
 
-        st.warning("Note: The above table is for display. To update 'Achieved', please select an entry below.")
+        st.warning("Note: Use the dropdown below to select an entry and update its 'Achieved' value.")
 
         # Admin selection and update form
         with st.form("admin_achieved_form"):
-            # Create a unique identifier for each entry to select
+            # Create a unique identifiable string for each entry to display in the selectbox
             unachieved_entries['Display'] = unachieved_entries.apply(
-                lambda row: f"{row['Date'].strftime('%Y-%m-%d')} - {row['FT_Member']} - {row['Activity'][:50]}...", axis=1
+                lambda row: f"{row['Date'].strftime('%Y-%m-%d')} - {row['FT_Member']} - {row['Activity'][:70]}...", axis=1
             )
             selected_entry_display = st.selectbox(
-                "Select entry to update:",
+                "Select entry to update 'Achieved' value:",
                 options=unachieved_entries['Display'].tolist(),
                 key="admin_select_entry"
             )
 
             if selected_entry_display:
+                # Retrieve the original row from the unachieved_entries DataFrame
                 selected_row = unachieved_entries[unachieved_entries['Display'] == selected_entry_display].iloc[0]
-                current_achieved = selected_row['Achieved'] if pd.notna(selected_row['Achieved']) else ""
                 
-                new_achieved = st.text_input(
-                    f"Enter Achieved for: {selected_row['Activity']} (Target: {selected_row['Target']})",
-                    value=current_achieved,
+                # Get the current achieved value (will likely be empty string)
+                current_achieved_value = selected_row['Achieved'] if pd.notna(selected_row['Achieved']) else ""
+                
+                new_achieved_input = st.text_input(
+                    f"Enter Achieved for: '{selected_row['Activity']}' (Target: '{selected_row['Target']}')",
+                    value=current_achieved_value,
                     key="new_achieved_input"
                 )
                 
                 update_button = st.form_submit_button("Update Achieved")
 
                 if update_button:
-                    # Find the original index in the global daily_workplans_df
-                    # Filter based on Date, FT_Member, Activity, Target (and potentially Timestamp for uniqueness)
-                    # This is crucial because the displayed `unachieved_entries` is a copy.
-                    
-                    # Need to convert 'Date' column in daily_workplans_df back to string for direct comparison
-                    temp_df = daily_workplans_df.copy()
-                    temp_df['Date'] = temp_df['Date'].dt.strftime('%Y-%m-%d') if pd.api.types.is_datetime64_any_dtype(temp_df['Date']) else temp_df['Date']
+                    # Find the corresponding row in the global daily_workplans_df
+                    # Convert 'Date' column in daily_workplans_df to string for direct comparison
+                    temp_df_for_match = daily_workplans_df.copy()
+                    temp_df_for_match['Date_Str'] = temp_df_for_match['Date'].dt.strftime('%Y-%m-%d') if pd.api.types.is_datetime64_any_dtype(temp_df_for_match['Date']) else temp_df_for_match['Date']
 
-                    match_index = temp_df[
-                        (temp_df['Date'] == selected_row['Date'].strftime('%Y-%m-%d')) &
-                        (temp_df['FT_Member'] == selected_row['FT_Member']) &
-                        (temp_df['Activity'] == selected_row['Activity']) &
-                        (temp_df['Target'] == selected_row['Target'])
+                    # Match based on key fields, including the string formatted date
+                    match_index = temp_df_for_match[
+                        (temp_df_for_match['Date_Str'] == selected_row['Date'].strftime('%Y-%m-%d')) &
+                        (temp_df_for_match['FT_Member'] == selected_row['FT_Member']) &
+                        (temp_df_for_match['Activity'] == selected_row['Activity']) &
+                        (temp_df_for_match['Target'] == selected_row['Target']) &
+                        (temp_df_for_match['Timestamp'] == selected_row['Timestamp']) # Also match timestamp for uniqueness
                     ].index
 
                     if not match_index.empty:
-                        # Update the 'Achieved' value in the original DataFrame
-                        daily_workplans_df.loc[match_index[0], 'Achieved'] = new_achieved
-                        # Update the Timestamp as well
+                        # Update the 'Achieved' value and Timestamp in the global DataFrame
+                        daily_workplans_df.loc[match_index[0], 'Achieved'] = new_achieved_input
                         daily_workplans_df.loc[match_index[0], 'Timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-                        save_daily_workplans(daily_workplans_df)
+                        save_daily_workplans(daily_workplans_df) # Save updated DataFrame to CSV
                         st.success("Achieved value updated successfully!")
-                        st.rerun()
+                        st.rerun() # Rerun to refresh the displayed data
                     else:
-                        st.error("Could not find the original entry to update. Please refresh.")
+                        st.error("Could not find the original entry to update. It might have been updated or removed. Please refresh.")
             else:
-                st.info("Select an entry to update its achieved value.")
+                st.info("Select an entry from the dropdown above to update its achieved value.")
 
+# --- General Dashboard Sections ---
 st.markdown("---")
 st.header("Training Performance")
 st.markdown("---")
 
-# --- Display Raw Tables ---
 st.subheader("📊 Monthly Training Breakdown")
 st.dataframe(training_df, use_container_width=True)
 
@@ -440,12 +460,12 @@ st.dataframe(summary_df, use_container_width=True)
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.checkbox("Show Total Trainings per Topic"):
+    if st.checkbox("Show Total Trainings per Topic", key="chart_trainings"):
         chart_data = summary_df.set_index("Training_Topic")["Total_Training"]
         st.bar_chart(chart_data)
 
 with col2:
-    if st.checkbox("Show Total Farmers Reached per Topic"):
+    if st.checkbox("Show Total Farmers Reached per Topic", key="chart_farmers"):
         farmer_data = summary_df.set_index("Training_Topic")["No_of_Farmers"]
         st.bar_chart(farmer_data)
 
@@ -487,35 +507,35 @@ if action_items:
 else:
     st.info("No specific actionable insights or targets to display as all BMCs are performing well.")
 
-# --- NEW: Month-wise Static Workplans ---
+# --- NEW: Month-wise Static Workplans (Refined Display) ---
 st.markdown("---")
-st.header("Static Monthly Workplans (July & August 2025)")
+st.header("Static Monthly Workplans (July & August 2025) - Overview")
+st.markdown("Displays the planned activities for each field team member, consolidated by month.")
 
-# Load all monthly workplans once
-all_monthly_workplans = {}
+# Load all monthly workplans once for efficient display
+all_monthly_workplans_data = {}
 for member in FT_MEMBERS:
     df = load_monthly_workplan_data(member)
     if not df.empty:
-        all_monthly_workplans[member] = df
+        all_monthly_workplans_data[member] = df
 
 # Display July Workplan
 st.subheader("📅 July 2025 Workplans")
-if not all_monthly_workplans:
+if not all_monthly_workplans_data:
     st.info("No monthly workplan data loaded for any member.")
 else:
-    # Create a list of columns for July for consistent display
-    july_cols = ['Activity'] + [f"July_{d}" for d in range(16, 32)] # July 16 to 31
-    
-    # Check if a column for 'July_31' exists, otherwise adjust range
-    # (The original CSVs have dates 1-31 under August, but July only up to 31st)
-    
-    # We need a robust way to check if a specific column exists in any dataframe before concatenating
-    # This loop ensures we only take columns that are actually present
     july_data_frames = []
-    for member, df in all_monthly_workplans.items():
-        member_july_df = df[['Activity'] + [col for col in july_cols if col in df.columns]].copy()
-        member_july_df.insert(1, 'Field Team Member', member) # Add member name as a column
-        july_data_frames.append(member_july_df)
+    # Columns expected for July from the CSV structure
+    expected_july_date_cols = [f"July_{d}" for d in range(16, 32)] # July 16 to July 31
+
+    for member, df in all_monthly_workplans_data.items():
+        # Ensure 'Activity' column exists before proceeding
+        if 'Activity' in df.columns:
+            # Select 'Activity' and only the actual July date columns present in this DF
+            member_july_cols = ['Activity'] + [col for col in expected_july_date_cols if col in df.columns]
+            member_july_df = df[member_july_cols].copy()
+            member_july_df.insert(1, 'Field Team Member', member) # Add member name
+            july_data_frames.append(member_july_df)
 
     if july_data_frames:
         combined_july_df = pd.concat(july_data_frames, ignore_index=True)
@@ -525,23 +545,26 @@ else:
 
         st.dataframe(combined_july_df, use_container_width=True)
     else:
-        st.info("No July workplan data to display.")
+        st.info("No July workplan data to display after processing.")
 
 st.markdown("---")
 
 # Display August Workplan
 st.subheader("📅 August 2025 Workplans")
-if not all_monthly_workplans:
+if not all_monthly_workplans_data:
     st.info("No monthly workplan data loaded for any member.")
 else:
-    # Create a list of columns for August for consistent display
-    august_cols = ['Activity'] + [f"August_{str(d).zfill(2)}" for d in range(1, 32)] # August 1 to 31 (padded 0 for single digits)
-
     august_data_frames = []
-    for member, df in all_monthly_workplans.items():
-        member_august_df = df[['Activity'] + [col for col in august_cols if col in df.columns]].copy()
-        member_august_df.insert(1, 'Field Team Member', member) # Add member name as a column
-        august_data_frames.append(member_august_df)
+    # Columns expected for August from the CSV structure (e.g., August_01 to August_31)
+    expected_august_date_cols = [f"August_{str(d).zfill(2)}" for d in range(1, 32)] # August 1 to 31
+
+    for member, df in all_monthly_workplans_data.items():
+        if 'Activity' in df.columns:
+            # Select 'Activity' and only the actual August date columns present in this DF
+            member_august_cols = ['Activity'] + [col for col in expected_august_date_cols if col in df.columns]
+            member_august_df = df[member_august_cols].copy()
+            member_august_df.insert(1, 'Field Team Member', member) # Add member name
+            august_data_frames.append(member_august_df)
 
     if august_data_frames:
         combined_august_df = pd.concat(august_data_frames, ignore_index=True)
@@ -551,21 +574,19 @@ else:
 
         st.dataframe(combined_august_df, use_container_width=True)
     else:
-        st.info("No August workplan data to display.")
+        st.info("No August workplan data to display after processing.")
 
 st.markdown("---")
 
-# --- Daily Workplan Entries (for both FT and Admin to see) ---
-st.markdown("---")
+# --- Daily Workplan Entries (Current and Historical Daily Submissions) ---
 st.header("Daily Workplan Entries (Targets & Achieved)")
+st.markdown("View all daily workplan submissions and their current status.")
 if not daily_workplans_df.empty:
-    # Convert 'Date' back to datetime for proper sorting and display if it was saved as string
-    daily_workplans_df['Date'] = pd.to_datetime(daily_workplans_df['Date'])
-    # Sort by date and then member for better readability
-    display_df = daily_workplans_df.sort_values(by=['Date', 'FT_Member'], ascending=[False, True]).reset_index(drop=True)
+    # Sort by date (descending) and then member for better readability
+    display_daily_df = daily_workplans_df.sort_values(by=['Date', 'FT_Member'], ascending=[False, True]).reset_index(drop=True)
     
     st.dataframe(
-        display_df,
+        display_daily_df,
         column_config={
             "Date": st.column_config.DatetimeColumn("Date", format="YYYY-MM-DD"),
             "FT_Member": "Field Team Member",
